@@ -22,7 +22,8 @@ static const char* wifiReasonStr(uint8_t r) {
     case 2:   return " (auth expired)";
     case 8:   return " (left network)";
     case 15:  return " (handshake timeout - wrong password?)";
-    case 201: return " (network not found - 2.4 GHz? in range?)";
+    case 200: return " (beacon timeout - weak signal?)";
+    case 201: return " (network not found - 2.4 GHz? channel 12/13? in range?)";
     case 202: return " (auth failed - wrong password?)";
     case 203: return " (association failed - channel busy? try disconnecting phone from hotspot)";
     case 204: return " (handshake timeout - wrong password?)";
@@ -87,12 +88,33 @@ void wifiManagerTick() {
   if (portalActive) {
     dnsServer.processNextRequest();
     if (WiFi.status() == WL_CONNECTED) { stopPortal(); return; }
+
+    /* diagnostic: async scan between retries — is the target SSID even
+       visible, on what channel, how strong? (channel 12/13 and weak
+       signal are the classic "reason 201" culprits) */
+    static uint32_t lastScanAt = 0;
+    int sc = WiFi.scanComplete();
+    if (sc >= 0) {
+      String s = "scan: '" + cfgWifiSsid + "' ";
+      int hit = -1;
+      for (int i = 0; i < sc; i++)
+        if (WiFi.SSID(i) == cfgWifiSsid && (hit < 0 || WiFi.RSSI(i) > WiFi.RSSI(hit))) hit = i;
+      if (hit >= 0) s += "ch " + String(WiFi.channel(hit)) + ", " + String(WiFi.RSSI(hit)) + " dBm";
+      else          s += "NOT visible (" + String(sc) + " networks seen)";
+      logLine(s);
+      WiFi.scanDelete();
+    }
+
     if (wifiRetryNow || ms - lastStaRetryAt > 30000) {
       lastStaRetryAt = ms;
       wifiRetryNow   = false;
       logLine("portal: trying WiFi '" + cfgWifiSsid + "' ...");
       WiFi.disconnect();                        // reset a stuck connect state
       WiFi.begin(cfgWifiSsid.c_str(), cfgWifiPass.c_str());
+    } else if (sc == WIFI_SCAN_FAILED && ms - lastScanAt > 60000 &&
+               ms - lastStaRetryAt > 10000) {   // don't abort a fresh connect attempt
+      lastScanAt = ms;
+      WiFi.scanNetworks(true /*async*/, true /*show hidden*/);
     }
     return;
   }

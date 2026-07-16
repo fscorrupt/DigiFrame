@@ -6,8 +6,8 @@ void fetchWeather() {
   WiFiClientSecure c;
   c.setInsecure();
   HTTPClient http;
-  String url = "https://api.open-meteo.com/v1/forecast?latitude=" LATITUDE
-               "&longitude=" LONGITUDE "&current=temperature_2m,weather_code";
+  String url = String("https://api.open-meteo.com/v1/forecast?latitude=") + cfgLat +
+               "&longitude=" + cfgLon + "&current=temperature_2m,weather_code";
   if (http.begin(c, url) && http.GET() == 200) {
     JsonDocument doc;
     if (deserializeJson(doc, http.getString()) == DeserializationError::Ok) {

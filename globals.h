@@ -13,6 +13,12 @@ String cfgWifiSsid   = WIFI_SSID;
 String cfgWifiPass   = WIFI_PASS;
 String botToken      = BOT_TOKEN;
 String allowedChatId = ALLOWED_CHAT_ID;
+/* weather location — fixed char buffers (not String) because the web
+   handler (core 1) writes while weatherTask (core 0) reads; a short
+   strlcpy race is harmless, a String heap realloc race is not. */
+char cfgLat[16]      = LATITUDE;
+char cfgLon[16]      = LONGITUDE;
+volatile bool weatherNow   = false;  // web handler asks for an immediate refetch
 volatile bool tgTokenDirty = false;  // set by web handler (core 1), applied by tgTask (core 0)
 bool          portalActive = false;  // setup hotspot + captive portal active
 volatile bool wifiRetryNow = false;  // web handler asks for an immediate STA (re)connect
@@ -130,9 +136,15 @@ void tgTask(void *pv) {
 /* ---- background task: weather fetch on core 0 ---- */
 void weatherTask(void *pv) {
   vTaskDelay(pdMS_TO_TICKS(2000));        // let setup() finish first
+  uint32_t lastFetch = 0;
   for (;;) {
-    if (WiFi.status() == WL_CONNECTED) fetchWeather();
-    vTaskDelay(pdMS_TO_TICKS(20UL * 60000UL));
+    if (WiFi.status() == WL_CONNECTED &&
+        (weatherNow || !lastFetch || millis() - lastFetch > 20UL * 60000UL)) {
+      weatherNow = false;
+      fetchWeather();
+      lastFetch = millis();
+    }
+    vTaskDelay(pdMS_TO_TICKS(5000));      // short tick so weatherNow applies fast
   }
 }
 

@@ -1,5 +1,6 @@
 /* DigiFrame — GIF decode callbacks + open/close + character pack */
 #pragma once
+#include "default_gifs.h"   // embedded default pack (auto-generated)
 
 /**********************  5. GIF CALLBACKS  ****************************/
 void *GIFOpenFile(const char *fname, int32_t *pSize) {
@@ -144,6 +145,26 @@ bool openGif(const String &path, bool userPlay = false) {
 }
 void closeGif() {
   if (gifOpen) { gif.close(); gifOpen = false; }
+}
+
+/* One-time seed of the embedded default GIF pack onto LittleFS. The
+ * marker file makes this run exactly once per filesystem, so GIFs the
+ * user deletes from the dashboard stay deleted across reboots. */
+void seedDefaultGifs() {
+  if (LittleFS.exists("/.gifs_seeded")) return;
+  int n = 0;
+  for (size_t i = 0; i < DEFAULT_GIF_COUNT; i++) {
+    const DefaultGif &g = DEFAULT_GIFS[i];
+    if (LittleFS.exists(g.path)) continue;      // don't clobber an upload
+    File f = LittleFS.open(g.path, "w");
+    if (!f) { logLine("seed FAILED: " + String(g.path)); continue; }
+    f.write(g.data, g.len);
+    f.close();
+    n++;
+  }
+  File m = LittleFS.open("/.gifs_seeded", "w");
+  if (m) { m.print("1"); m.close(); }
+  logLine("default GIF pack: seeded " + String(n) + " gifs");
 }
 
 /* Character pack: any GIF named c_*.gif belongs to the random cameo

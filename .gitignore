@@ -1,6 +1,9 @@
 # local copy of config.h with real credentials
 config.h.local-backup
 
+# local test builds with real credentials baked in — never commit
+build-local/
+
 # heavy build intermediates (flashable .bins are committed)
 build/*.elf
 build/*.map

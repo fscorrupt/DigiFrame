@@ -75,6 +75,8 @@ void saveConfig() {
   d["pass"]    = cfgWifiPass;
   d["tgToken"] = botToken;
   d["tgChat"]  = allowedChatId;
+  d["lat"]     = cfgLat;
+  d["lon"]     = cfgLon;
   File f = LittleFS.open("/config.json", "w");
   serializeJson(d, f);
   f.close();
@@ -90,6 +92,8 @@ void loadConfig() {
     if (d["pass"].is<const char*>())    cfgWifiPass   = d["pass"].as<String>();
     if (d["tgToken"].is<const char*>()) botToken      = d["tgToken"].as<String>();
     if (d["tgChat"].is<const char*>())  allowedChatId = d["tgChat"].as<String>();
+    if (d["lat"].is<const char*>()) strlcpy(cfgLat, d["lat"], sizeof(cfgLat));
+    if (d["lon"].is<const char*>()) strlcpy(cfgLon, d["lon"], sizeof(cfgLon));
   }
   f.close();
 }

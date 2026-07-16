@@ -22,13 +22,13 @@ arduino-cli compile --fqbn esp32:esp32:esp32s3:FlashSize=16M,PSRAM=opi,Partition
   esptool --chip esp32s3 --port COM5 write-flash 0x10000 build/DigiFrame.ino.bin              # app only, fastest
   esptool --chip esp32s3 --port COM5 write-flash 0x0 build/DigiFrame.ino.merged.bin           # factory reset (wipes LittleFS)
   ```
-- **Data upload:** GIFs are uploaded via the web dashboard (`http://digiframe.local`), or once via the "ESP32 Sketch Data Upload" plugin. Telegram GIF upload was removed intentionally. Source GIF assets shipped with the repo live in `gifs/` — they are not auto-flashed; upload the ones you want via the dashboard (or copy into a `data/` folder before running the Sketch Data Upload plugin).
+- **Default GIF pack:** `gifs/*.gif` are embedded in the app image via the auto-generated `default_gifs.h` (regenerate with `tools/make_default_gifs.ps1` after changing `gifs/`) and copied to LittleFS **once** on first boot (`seedDefaultGifs()`, marker `/.gifs_seeded`) — after that they are ordinary files the user can delete from the dashboard, and deletions stick. Additional GIFs are uploaded via the web dashboard (`http://digiframe.local`). Telegram GIF upload was removed intentionally.
 
 There are no tests, linters, or CI. Primary verification is a clean arduino-cli compile.
 
 ## Runtime configuration
 
-Compile-time **defaults** live in `config.h` (WiFi SSID/pass, `BOT_TOKEN`, `ALLOWED_CHAT_ID`, names, timezone, brightness, hotspot `AP_SSID`/`AP_PASS`). At runtime they are overridden by `/config.json` on LittleFS (keys `ssid`, `pass`, `tgToken`, `tgChat`, `bright`, `charMin`), editable from the web dashboard (`/api/wifi`, `/api/tgconfig`). **Note:** `BOT_TOKEN` and `WIFI_PASS` are hardcoded defaults in `config.h` — treat as sensitive.
+Compile-time **defaults** live in `config.h` (WiFi SSID/pass, `BOT_TOKEN`, `ALLOWED_CHAT_ID`, names, timezone, location, brightness, hotspot `AP_SSID`/`AP_PASS`). At runtime they are overridden by `/config.json` on LittleFS (keys `ssid`, `pass`, `tgToken`, `tgChat`, `bright`, `charMin`, `lat`, `lon`), editable from the web dashboard (`/api/wifi`, `/api/tgconfig`, `/api/loc`). Weather lat/lon live in fixed `char` buffers (`cfgLat`/`cfgLon`), not `String`, because core 1 writes them while `weatherTask` (core 0) reads. **Note:** `BOT_TOKEN` and `WIFI_PASS` are hardcoded defaults in `config.h` — treat as sensitive.
 
 ## Architecture
 
@@ -44,14 +44,15 @@ Preserve this order when adding a new header — e.g. anything using the DMA pan
 |---|---|
 | `config.h` | user config + pin map (compile-time defaults) |
 | `globals.h` | globals, runtime config strings, TgCmd queue, `logLine`, `tgTask`/`weatherTask`, colors |
-| `gif_player.h` | GIF decode callbacks, `openGif`/`closeGif`, character pack |
+| `gif_player.h` | GIF decode callbacks, `openGif`/`closeGif`, character pack, `seedDefaultGifs` |
+| `default_gifs.h` | auto-generated embedded default GIF pack (do not edit — run `tools/make_default_gifs.ps1`) |
 | `events_store.h` | `/events.json` special days + `/config.json` persisted config |
 | `weather.h` | Open-Meteo fetch + weather icons |
 | `scene.h` | clock face + ambient scene (sprites, `renderClock`) — the big one |
 | `scroll.h` | scrolling text renderer |
 | `party.h` | party mode + `/test` mode |
 | `telegram.h` | bot commands, reply keyboard, inline keyboards, callback queries |
-| `web_portal.h` | dashboard HTML + `/api/*` handlers + captive-portal redirect (endpoints: `GET /`, `GET /api/logs`, `GET /api/list`, `GET /api/config`, `POST /api/msg`, `/api/brightness`, `/api/play`, `/api/del`, `/api/interval`, `/api/party`, `/api/stop`, `/api/upload`, `/api/tgtest`, `/api/wifi`, `/api/tgconfig`, `/api/ota`) |
+| `web_portal.h` | dashboard HTML + `/api/*` handlers + captive-portal redirect (endpoints: `GET /`, `GET /api/logs`, `GET /api/list`, `GET /api/config`, `POST /api/msg`, `/api/brightness`, `/api/play`, `/api/del`, `/api/interval`, `/api/party`, `/api/stop`, `/api/upload`, `/api/tgtest`, `/api/wifi`, `/api/tgconfig`, `/api/loc`, `/api/ota`) |
 | `qr_display.h` | `renderSetupQR()` — QR on the panel in `MODE_SETUP` |
 | `wifi_manager.h` | `wifiConnect`, `startPortal`/`stopPortal`, `wifiManagerTick` |
 

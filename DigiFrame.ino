@@ -114,6 +114,7 @@ void setup() {
      the mount fails and nothing (config/GIFs) ever persists. */
   if (!LittleFS.begin(true, "/littlefs", 10, "ffat"))
     Serial.println("LittleFS mount failed!");
+  seedDefaultGifs();          // one-time copy of the embedded default pack
   loadEvents();
   loadConfig();
   dma->setBrightness8(userBrightness);

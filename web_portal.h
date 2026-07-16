@@ -40,6 +40,11 @@ button{cursor:pointer;background:#ff5078;border:0}li{margin:6px 0;list-style:non
 <button onclick="api('tgconfig','t='+encodeURIComponent(tt.value)+'&c='+encodeURIComponent(tc.value))">Save</button>
 <div class=st id=tst></div>
 <button onclick="api('tgtest')">Test Telegram send</button></fieldset>
+<fieldset><legend>Weather location</legend>
+<input id=la placeholder="latitude" style="width:28%">
+<input id=lo placeholder="longitude" style="width:28%">
+<button onclick="api('loc','la='+encodeURIComponent(la.value)+'&lo='+encodeURIComponent(lo.value))">Save</button>
+<div class=st>decimal degrees, e.g. 12.97 / 77.59 &mdash; weather refreshes right away</div></fieldset>
 <fieldset><legend>Firmware (OTA)</legend>
 <input type=file id=fw accept=.bin><br>
 <button onclick=ota()>&#9889; Update firmware</button>
@@ -70,6 +75,7 @@ async function loadCfg(){try{let r=await fetch('/api/config'),j=await r.json();
  ws.placeholder=j.ssid?('SSID: '+j.ssid):'network name (SSID)';
  tc.placeholder=j.chat?('chat id: '+j.chat):'allowed chat id';
  tt.placeholder=j.token?('token: '+j.token):'bot token (from @BotFather)';
+ la.placeholder='lat: '+j.lat;lo.placeholder='lon: '+j.lon;
  wst.textContent='WiFi: '+j.wifi;tst.textContent=''}catch(e){}}
 load();loadLogs();loadCfg();setInterval(loadLogs,2000)</script></body></html>)HTML";
 
@@ -262,6 +268,8 @@ void setupWeb() {
     d["ssid"]  = cfgWifiSsid;
     d["chat"]  = allowedChatId;
     d["token"] = tk;
+    d["lat"]   = cfgLat;
+    d["lon"]   = cfgLon;
     d["wifi"]  = (WiFi.status() == WL_CONNECTED)
                    ? "connected, IP " + WiFi.localIP().toString()
                    : String(portalActive ? "hotspot mode — enter your WiFi above" : "disconnected");
@@ -280,6 +288,21 @@ void setupWeb() {
     wifiRetryNow = true;
     logLine("WiFi creds updated -> '" + cfgWifiSsid + "'");
     web.send(200, "text/plain", "ok — connecting to " + cfgWifiSsid);
+  });
+  /* ---- save weather location; weatherTask refetches right away ---- */
+  web.on("/api/loc", HTTP_POST, []() {
+    String la = web.arg("la"); la.trim();
+    String lo = web.arg("lo"); lo.trim();
+    float flat = la.toFloat(), flon = lo.toFloat();
+    if (!la.length() || !lo.length() || flat < -90 || flat > 90 || flon < -180 || flon > 180) {
+      web.send(400, "text/plain", "bad lat/lon"); return;
+    }
+    strlcpy(cfgLat, la.c_str(), sizeof(cfgLat));
+    strlcpy(cfgLon, lo.c_str(), sizeof(cfgLon));
+    saveConfig();
+    weatherNow = true;
+    logLine("location updated -> " + la + "," + lo);
+    web.send(200, "text/plain", "ok");
   });
   /* ---- save Telegram config; tgTask applies the token (core 0) ---- */
   web.on("/api/tgconfig", HTTP_POST, []() {
