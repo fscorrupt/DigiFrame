@@ -1,0 +1,84 @@
+/* DigiFrame — WiFi connect, setup-hotspot fallback, auto-reconnect */
+#pragma once
+#include <DNSServer.h>
+
+/**********************  12d. WIFI MANAGER  ***************************/
+/* Normal life: plain STA with auto-reconnect. If the stored network
+ * can't be reached (at boot, or for WIFI_FAIL_PORTAL_MIN minutes at
+ * runtime), a WPA2 hotspot + captive DNS portal starts and the panel
+ * shows the join QR (MODE_SETUP). While the portal is up the STA side
+ * keeps retrying the stored credentials every 30 s — so when the old
+ * router comes back, or new creds are saved on the dashboard, the frame
+ * reconnects on its own and the portal shuts down. */
+
+DNSServer dnsServer;
+uint32_t  lastStaRetryAt = 0;
+uint32_t  wifiDownSince  = 0;
+
+void startPortal() {
+  if (portalActive) return;
+  closeGif();
+  WiFi.mode(WIFI_AP_STA);                       // STA stays alive for retries
+  WiFi.softAP(AP_SSID, AP_PASS);
+  dnsServer.start(53, "*", WiFi.softAPIP());    // captive portal: all DNS -> us
+  portalActive   = true;
+  qrLastText     = "";                          // force QR redraw
+  mode           = MODE_SETUP;
+  dma->setBrightness8(150);                     // QR must stay scannable
+  lastStaRetryAt = millis();
+  logLine("PORTAL up: AP '" AP_SSID "' pass '" AP_PASS "' -> http://192.168.4.1");
+}
+
+void stopPortal() {
+  dnsServer.stop();
+  WiFi.softAPdisconnect(true);
+  WiFi.mode(WIFI_STA);
+  portalActive = false;
+  if (MDNS.begin("digiframe")) MDNS.addService("http", "tcp", 80);
+  dma->setBrightness8(userBrightness);
+  if (mode == MODE_SETUP) mode = MODE_CLOCK;
+  logLine("PORTAL down — WiFi OK, IP " + WiFi.localIP().toString());
+}
+
+/* Boot-time connect: true if connected within timeoutMs. */
+bool wifiConnect(uint32_t timeoutMs) {
+  WiFi.mode(WIFI_STA);
+  WiFi.setAutoReconnect(true);
+  WiFi.begin(cfgWifiSsid.c_str(), cfgWifiPass.c_str());
+  WiFi.setSleep(false);                         // keeps Telegram snappy
+  uint32_t t0 = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - t0 < timeoutMs) delay(200);
+  return WiFi.status() == WL_CONNECTED;
+}
+
+/* Called every loop() iteration on core 1. */
+void wifiManagerTick() {
+  uint32_t ms = millis();
+
+  if (portalActive) {
+    dnsServer.processNextRequest();
+    if (WiFi.status() == WL_CONNECTED) { stopPortal(); return; }
+    if (wifiRetryNow || ms - lastStaRetryAt > 30000) {
+      lastStaRetryAt = ms;
+      wifiRetryNow   = false;
+      logLine("portal: trying WiFi '" + cfgWifiSsid + "' ...");
+      WiFi.begin(cfgWifiSsid.c_str(), cfgWifiPass.c_str());
+    }
+    return;
+  }
+
+  if (wifiRetryNow) {                 // creds changed on dashboard while online
+    wifiRetryNow = false;
+    logLine("WiFi: switching to '" + cfgWifiSsid + "'");
+    WiFi.disconnect();
+    WiFi.begin(cfgWifiSsid.c_str(), cfgWifiPass.c_str());
+    wifiDownSince = 0;
+    return;
+  }
+
+  if (WiFi.status() == WL_CONNECTED) { wifiDownSince = 0; return; }
+  // outage: auto-reconnect handles quick blips; reopen the portal only
+  // after a sustained failure (e.g. the frame moved to a new home).
+  if (!wifiDownSince) wifiDownSince = ms ? ms : 1;
+  else if (ms - wifiDownSince > (uint32_t)WIFI_FAIL_PORTAL_MIN * 60000UL) startPortal();
+}

@@ -1,0 +1,10 @@
+# local copy of config.h with real credentials
+config.h.local-backup
+
+# heavy build intermediates (flashable .bins are committed)
+build/*.elf
+build/*.map
+build/esp32.esp32.esp32s3/
+
+# local Claude Code settings
+.claude/settings.local.json
