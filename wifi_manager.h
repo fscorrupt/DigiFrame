@@ -15,6 +15,33 @@ DNSServer dnsServer;
 uint32_t  lastStaRetryAt = 0;
 uint32_t  wifiDownSince  = 0;
 
+/* Human-readable STA disconnect reasons (the common ones) so the
+ * dashboard log shows WHY a connect attempt failed. */
+static const char* wifiReasonStr(uint8_t r) {
+  switch (r) {
+    case 2:   return " (auth expired)";
+    case 8:   return " (left network)";
+    case 15:  return " (handshake timeout - wrong password?)";
+    case 201: return " (network not found - 2.4 GHz? in range?)";
+    case 202: return " (auth failed - wrong password?)";
+    case 203: return " (association failed - channel busy? try disconnecting phone from hotspot)";
+    case 204: return " (handshake timeout - wrong password?)";
+    default:  return "";
+  }
+}
+
+void wifiEventsInit() {
+  WiFi.onEvent([](arduino_event_id_t, arduino_event_info_t info) {
+    static uint8_t  lastReason = 0;
+    static uint32_t lastLogAt  = 0;
+    uint8_t r = info.wifi_sta_disconnected.reason;
+    // auto-reconnect fires this repeatedly — log only reason changes, or 30s heartbeats
+    if (r == lastReason && millis() - lastLogAt < 30000) return;
+    lastReason = r; lastLogAt = millis();
+    logLine("WiFi fail: reason " + String(r) + wifiReasonStr(r));
+  }, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
+}
+
 void startPortal() {
   if (portalActive) return;
   closeGif();
@@ -42,6 +69,8 @@ void stopPortal() {
 
 /* Boot-time connect: true if connected within timeoutMs. */
 bool wifiConnect(uint32_t timeoutMs) {
+  static bool evReg = false;
+  if (!evReg) { evReg = true; wifiEventsInit(); }
   WiFi.mode(WIFI_STA);
   WiFi.setAutoReconnect(true);
   WiFi.begin(cfgWifiSsid.c_str(), cfgWifiPass.c_str());
@@ -62,6 +91,7 @@ void wifiManagerTick() {
       lastStaRetryAt = ms;
       wifiRetryNow   = false;
       logLine("portal: trying WiFi '" + cfgWifiSsid + "' ...");
+      WiFi.disconnect();                        // reset a stuck connect state
       WiFi.begin(cfgWifiSsid.c_str(), cfgWifiPass.c_str());
     }
     return;
