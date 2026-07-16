@@ -108,8 +108,12 @@ void setup() {
   dma->setCursor(1, 12);
   dma->print("HELLO");
 
-  /* ---- filesystem + persisted config (may override WiFi/TG creds) ---- */
-  if (!LittleFS.begin(true)) Serial.println("LittleFS mount failed!");
+  /* ---- filesystem + persisted config (may override WiFi/TG creds) ----
+     NB: the fatflash partition scheme labels the data partition "ffat"
+     (not the LittleFS default "spiffs") — pass the label explicitly or
+     the mount fails and nothing (config/GIFs) ever persists. */
+  if (!LittleFS.begin(true, "/littlefs", 10, "ffat"))
+    Serial.println("LittleFS mount failed!");
   loadEvents();
   loadConfig();
   dma->setBrightness8(userBrightness);
