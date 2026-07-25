@@ -58,7 +58,7 @@
  *     4MB OTA app slots + ~7.9MB ffat data for LittleFS)
  *
  *  CLI BUILD (see FLASHING.md)
- *   arduino-cli compile --fqbn esp32:esp32:esp32s3:FlashSize=16M,PSRAM=opi,PartitionScheme=custom --output-dir build .
+ *   arduino-cli compile --fqbn esp32:esp32:esp32s3:FlashSize=16M,PSRAM=opi,PartitionScheme=custom --output-dir build firmware/DigiFrame
  *
  *  FILES to place on LittleFS (upload via the dashboard, or once via
  *  the "ESP32 Sketch Data Upload" plugin):

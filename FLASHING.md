@@ -5,7 +5,7 @@ Prebuilt binaries live in `build/` after a compile.
 ## Build (command line)
 
 ```
-arduino-cli compile --fqbn esp32:esp32:esp32s3:FlashSize=16M,PSRAM=opi,PartitionScheme=custom --output-dir build .
+arduino-cli compile --fqbn esp32:esp32:esp32s3:FlashSize=16M,PSRAM=opi,PartitionScheme=custom --output-dir build firmware/DigiFrame
 ```
 
 `PartitionScheme=custom` uses the sketch's `partitions.csv` (4 MB OTA app

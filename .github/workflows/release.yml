@@ -44,7 +44,7 @@ jobs:
             "ESP32 HUB75 LED MATRIX PANEL DMA Display@3.0.14"
 
       - name: Compile
-        run: arduino-cli compile --fqbn "$FQBN" --output-dir build .
+        run: arduino-cli compile --fqbn "$FQBN" --output-dir build firmware/DigiFrame
 
       - name: Assemble release binaries
         run: |

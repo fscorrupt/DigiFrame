@@ -8,6 +8,10 @@ dashboard** on your WiFi, a **Telegram bot**, or **Home Assistant** (MQTT).
 
 > Open source — contributions welcome.
 
+<p align="center">
+  <img src="images/clock-live-photo.png" alt="DigiFrame — a 64×64 LED matrix smart clock in its glass frame" width="480">
+</p>
+
 ## Features
 
 - **Clock + weather** — NTP time and Open-Meteo weather (no API key), with an
@@ -39,7 +43,7 @@ dashboard** on your WiFi, a **Telegram bot**, or **Home Assistant** (MQTT).
 
 The panel is driven over the 16-pin **HUB75E** header on the panel's **input**
 side (the arrow points *away* from IN; some panels label it `J1`/`IN`). The
-GPIO assignments live in [`config.h`](config.h) — change them freely, just
+GPIO assignments live in [`config.h`](firmware/DigiFrame/config.h) — change them freely, just
 avoid the reserved pins noted there. Defaults for the ESP32-S3:
 
 | HUB75 signal | Meaning            | ESP32-S3 GPIO |
@@ -89,10 +93,10 @@ On first power-up the panel shows `HELLO`, then the WiFi **setup QR** — follow
 
 ## Enclosure (3D-printable)
 
-A two-part frame is in [`stl/Glass frame/`](stl/Glass%20frame):
+A two-part frame is in [`stl/glass-frame/`](stl/glass-frame):
 
-- `Frame Box v1.stl` — the body that holds the panel and electronics
-- `Frame Lid v1.stl` — the back lid
+- `frame-box-v1.stl` — the body that holds the panel and electronics
+- `frame-lid-v1.stl` — the back lid
 
 It's designed around the **Waveshare P2.5 64×64** panel with a **3.5 mm thin
 glass** sheet at the front (the glass diffuses the LEDs and gives a clean
@@ -104,7 +108,7 @@ sits behind it, and the ESP32 + wiring tuck inside before the lid closes.
 Full instructions in [`FLASHING.md`](FLASHING.md). In short:
 
 ```
-arduino-cli compile --fqbn esp32:esp32:esp32s3:FlashSize=16M,PSRAM=opi,PartitionScheme=custom --output-dir build .
+arduino-cli compile --fqbn esp32:esp32:esp32s3:FlashSize=16M,PSRAM=opi,PartitionScheme=custom --output-dir build firmware/DigiFrame
 ```
 
 Board: **ESP32S3 Dev Module**, Flash 16 MB, PSRAM **OPI PSRAM**, Partition
@@ -152,7 +156,7 @@ sensors. Off by default.
 Single Arduino sketch, dual-core FreeRTOS. **Core 1** owns the LED panel,
 GIF decoder, web server and mode state; **core 0** runs Telegram polling,
 weather fetches, the NimBLE host, and the MQTT client. A shared
-[`control.h`](control.h) layer holds one implementation per action, so every
+[`control.h`](firmware/DigiFrame/control.h) layer holds one implementation per action, so every
 front-end (HTTP dashboard, Bluetooth, Telegram, Home Assistant) behaves
 identically; core-0 tasks marshal work to core 1 through a command queue (they
 never touch LittleFS or the panel directly).
