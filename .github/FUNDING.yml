@@ -1,4 +1,2 @@
 # Shows a "Sponsor" button on the GitHub repo.
-# Replace YOUR_BMC_USERNAME with your Buy Me a Coffee username
-# (from your page URL: https://www.buymeacoffee.com/<username>).
-buy_me_a_coffee: YOUR_BMC_USERNAME
+github: [manoharc07]

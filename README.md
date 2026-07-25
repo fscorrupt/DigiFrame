@@ -9,8 +9,7 @@ dashboard** on your WiFi, a **Telegram bot**, or **Home Assistant** (MQTT).
 > Source-available for **DIY / noncommercial** use — contributions welcome. Commercial use needs a [separate license](#license).
 
 [![License: PolyForm Noncommercial](https://img.shields.io/badge/license-PolyForm%20Noncommercial-blue)](LICENSE.md)
-[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-%E2%98%95-FFDD00?logo=buymeacoffee&logoColor=black)](https://www.buymeacoffee.com/YOUR_BMC_USERNAME)
-<!-- ☕ replace YOUR_BMC_USERNAME (here and in .github/FUNDING.yml) with your Buy Me a Coffee username -->
+[![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-EA4AAA?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/manoharc07)
 
 <p align="center">
   <img src="images/clock-live-photo.png" alt="DigiFrame — a 64×64 LED matrix smart clock in its glass frame" width="480">
@@ -192,9 +191,9 @@ deploy DigiFrame somewhere less private, enable passkey pairing in
 ## Support the project
 
 DigiFrame is free for DIY / noncommercial use. If it helped you or you just want
-to say thanks, you can buy me a coffee ☕ — it funds more features:
+to say thanks, you can sponsor me on GitHub ❤️ — it funds more features:
 
-[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-support-FFDD00?logo=buymeacoffee&logoColor=black)](https://www.buymeacoffee.com/YOUR_BMC_USERNAME)
+[![Sponsor](https://img.shields.io/badge/Sponsor%20on%20GitHub-support-EA4AAA?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/manoharc07)
 
 ## License
 
