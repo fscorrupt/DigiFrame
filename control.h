@@ -148,6 +148,13 @@ void ctlSetTg(const String &token, const String &chat) {
   logLine("Telegram config updated (chat_id=" + allowedChatId + ")");
 }
 
+void ctlSetTz(int seconds) {
+  tzOffsetSec = constrain(seconds, -12 * 3600, 14 * 3600);
+  configTime(tzOffsetSec, 0, "pool.ntp.org", "time.google.com");  // re-apply offset live
+  saveConfig();
+  logLine("timezone set: UTC" + String(tzOffsetSec >= 0 ? "+" : "") + String(tzOffsetSec / 3600.0, 2) + "h");
+}
+
 void ctlTgTest() {
   if (WiFi.status() != WL_CONNECTED) { logLine("tgtest: no WiFi"); return; }
   logLine("tgtest: sending to " + allowedChatId + " ...");
@@ -202,6 +209,7 @@ String ctlStatusJson() {
   d["token"]    = tk;
   d["lat"]      = cfgLat;
   d["lon"]      = cfgLon;
+  d["tz"]       = tzOffsetSec;
   d["bright"]   = userBrightness;
   d["interval"] = charEveryMs / 60000UL;
   d["mode"]     = (int)mode;

@@ -51,6 +51,10 @@ button{cursor:pointer;background:#ff5078;border:0}li{margin:6px 0;list-style:non
 <input id=lo placeholder="longitude" style="width:28%">
 <button onclick="api('loc','la='+encodeURIComponent(la.value)+'&lo='+encodeURIComponent(lo.value))">Save</button>
 <div class=st>decimal degrees, e.g. 12.97 / 77.59 &mdash; weather refreshes right away</div></fieldset>
+<fieldset><legend>Time zone</legend>
+<input id=tz type=number step=0.25 placeholder="UTC offset (hours)" style="width:55%">
+<button onclick=saveTz()>Save</button>
+<div class=st>e.g. 5.5 for IST, -8 for PST, 5.75 for Nepal &mdash; clock updates right away</div></fieldset>
 <fieldset><legend>Home Assistant (MQTT)</legend>
 <label><input type=checkbox id=mqe> enable</label><br>
 <input id=mqh placeholder="broker host/IP" style="width:60%">
@@ -91,7 +95,8 @@ async function loadCfg(){try{let r=await fetch('/api/config'),j=await r.json();
  tt.placeholder=j.token?('token: '+j.token):'bot token (from @BotFather)';
  la.placeholder='lat: '+j.lat;lo.placeholder='lon: '+j.lon;
  wst.textContent='WiFi: '+j.wifi;tst.textContent='';
- mqe.checked=!!j.mqttEn;mqh.placeholder=j.mqttHost||'broker host/IP';mqp.placeholder=j.mqttPort||1883;mqu.placeholder=j.mqttUser||'username (optional)'}catch(e){}}
+ mqe.checked=!!j.mqttEn;mqh.placeholder=j.mqttHost||'broker host/IP';mqp.placeholder=j.mqttPort||1883;mqu.placeholder=j.mqttUser||'username (optional)';
+ tz.placeholder='UTC'+(j.tz>=0?'+':'')+(j.tz/3600)+'h'}catch(e){}}
 async function loadEv(){try{let r=await fetch('/api/events'),j=await r.json();
  ev.innerHTML=j.length?j.map(e=>`<li>${e.date} [${e.type}] ${e.message} <button onclick="delEv('${e.date}')">&#128465;</button></li>`).join(''):'<li class=st>none yet</li>'}catch(e){}}
 async function addEv(){if(!ed.value)return;await fetch('/api/events',{method:'POST',
@@ -99,6 +104,7 @@ async function addEv(){if(!ed.value)return;await fetch('/api/events',{method:'PO
 async function delEv(d){await fetch('/api/eventdel',{method:'POST',
  headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'d='+encodeURIComponent(d)});loadEv()}
 async function saveMqtt(){await api('mqtt','en='+(mqe.checked?'1':'0')+'&h='+encodeURIComponent(mqh.value)+'&p='+(mqp.value||1883)+'&u='+encodeURIComponent(mqu.value)+'&w='+encodeURIComponent(mqw.value))}
+async function saveTz(){let h=parseFloat(tz.value);if(isNaN(h))return;await api('tz','s='+Math.round(h*3600))}
 load();loadLogs();loadCfg();loadEv();setInterval(loadLogs,2000)</script></body></html>)HTML";
 
 void handleUpload() {
@@ -281,6 +287,11 @@ void setupWeb() {
   /* ---- save weather location; weatherTask refetches right away ---- */
   web.on("/api/loc", HTTP_POST, []() {
     if (!ctlSetLoc(web.arg("la"), web.arg("lo"))) { web.send(400, "text/plain", "bad lat/lon"); return; }
+    web.send(200, "text/plain", "ok");
+  });
+  /* ---- save timezone (UTC offset in seconds); re-applies immediately ---- */
+  web.on("/api/tz", HTTP_POST, []() {
+    ctlSetTz(web.arg("s").toInt());
     web.send(200, "text/plain", "ok");
   });
   /* ---- save Telegram config; tgTask applies the token (core 0) ---- */

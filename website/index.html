@@ -137,6 +137,15 @@
   </fieldset>
 
   <fieldset>
+    <legend>Time zone</legend>
+    <div class="row">
+      <input id="tz" type="number" step="0.25" placeholder="UTC offset (hours)" style="width:55%">
+      <button id="tzSave">Save</button>
+    </div>
+    <div class="st">e.g. 5.5 = IST, -8 = PST, 5.75 = Nepal — clock updates right away</div>
+  </fieldset>
+
+  <fieldset>
     <legend>Home Assistant (MQTT)</legend>
     <label><input type="checkbox" id="mqEn"> enable</label>
     <div class="row" style="margin-top:6px">

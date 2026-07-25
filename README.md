@@ -29,11 +29,75 @@ dashboard** on your WiFi, a **Telegram bot**, or **Home Assistant** (MQTT).
 
 ## Hardware
 
-- ESP32-S3 (tested on N16R8: 16 MB flash, 8 MB OPI PSRAM)
-- 64×64 HUB75 LED matrix (P2.5)
-- 5 V power supply sized for the panel
+- ESP32-S3 dev board (tested on N16R8: 16 MB flash, 8 MB OPI PSRAM)
+- 64×64 HUB75 RGB LED matrix, 2.5 mm pitch — e.g. the **Waveshare P2.5 64×64** panel
+- **5 V power supply** for the panel (≈2–4 A; sized for brightness), plus the
+  16-pin HUB75 ribbon + a few jumper wires
+- Optional: the 3D-printed enclosure below + a 3.5 mm thin glass front
 
-Pin map is in [`config.h`](config.h). Wire `E` for 1/32-scan 64×64 panels.
+## Wiring
+
+The panel is driven over the 16-pin **HUB75E** header on the panel's **input**
+side (the arrow points *away* from IN; some panels label it `J1`/`IN`). The
+GPIO assignments live in [`config.h`](config.h) — change them freely, just
+avoid the reserved pins noted there. Defaults for the ESP32-S3:
+
+| HUB75 signal | Meaning            | ESP32-S3 GPIO |
+|--------------|--------------------|:-------------:|
+| R1           | red (top half)     | 4  |
+| G1           | green (top half)   | 5  |
+| B1           | blue (top half)    | 6  |
+| R2           | red (bottom half)  | 7  |
+| G2           | green (bottom half)| 15 |
+| B2           | blue (bottom half) | 16 |
+| A            | row address A      | 18 |
+| B            | row address B      | 8  |
+| C            | row address C      | 9  |
+| D            | row address D      | 10 |
+| E            | row address E      | 42 |
+| CLK          | pixel clock        | 41 |
+| LAT / STB    | latch              | 40 |
+| OE           | output enable      | 2  |
+| GND          | ground             | GND (shared) |
+
+HUB75E header layout (pin 1 is usually marked on the connector):
+
+```
+      ┌──────────┐
+ R1 → │ 1     2  │ ← G1
+ B1 → │ 3     4  │ ← GND
+ R2 → │ 5     6  │ ← G2
+ B2 → │ 7     8  │ ← E      (E on 1/32-scan 64×64 panels; GND on 1/16 panels)
+  A → │ 9    10  │ ← B
+  C → │11    12  │ ← D
+ CLK→ │13    14  │ ← LAT
+ OE → │15    16  │ ← GND
+      └──────────┘
+```
+
+**Power & grounding (important):**
+- Power the **panel from the 5 V supply**, into its power lugs/terminals — do
+  **not** run the panel off the ESP32's 5 V pin (it can't supply the current).
+- The ESP32-S3 is powered over USB (or its own 5 V).
+- Tie the **PSU ground, panel ground, and ESP32 ground together** (common GND) —
+  the HUB75 `GND` pins above cover the signal ground.
+- `E` is **required** for 64×64 (1/32-scan) panels. Keep signal jumpers short
+  (< ~15 cm) or use a HUB75 adapter board to avoid flicker/ghosting.
+
+On first power-up the panel shows `HELLO`, then the WiFi **setup QR** — follow
+*Setup & control* below.
+
+## Enclosure (3D-printable)
+
+A two-part frame is in [`stl/Glass frame/`](stl/Glass%20frame):
+
+- `Frame Box v1.stl` — the body that holds the panel and electronics
+- `Frame Lid v1.stl` — the back lid
+
+It's designed around the **Waveshare P2.5 64×64** panel with a **3.5 mm thin
+glass** sheet at the front (the glass diffuses the LEDs and gives a clean
+finish). Print in PLA/PETG; the glass drops into the front recess, the panel
+sits behind it, and the ESP32 + wiring tuck inside before the lid closes.
 
 ## Build & flash
 

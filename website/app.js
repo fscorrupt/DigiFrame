@@ -58,7 +58,7 @@
 
   // ---------- status + gif rendering ----------
   let editing = {};   // don't clobber a field the user is typing in
-  ["ssid", "pass", "tgToken", "tgChat", "lat", "lon", "interval"].forEach((id) => {
+  ["ssid", "pass", "tgToken", "tgChat", "lat", "lon", "interval", "tz"].forEach((id) => {
     const el = $(id);
     el.addEventListener("focus", () => { editing[id] = true; });
     el.addEventListener("blur", () => { editing[id] = false; });
@@ -73,6 +73,7 @@
     ph("tgToken", s.token ? "token: " + s.token : "bot token (from @BotFather)");
     ph("lat", "lat: " + s.lat);
     ph("lon", "lon: " + s.lon);
+    if (s.tz !== undefined) ph("tz", "UTC" + (s.tz >= 0 ? "+" : "") + s.tz / 3600 + "h");
     if (!editing.interval && document.activeElement !== $("interval")) $("interval").value = s.interval;
     if (document.activeElement !== $("bright")) {
       $("bright").value = s.bright;
@@ -140,6 +141,10 @@
   $("btnStop").onclick  = guard(() => ble.stop());
   $("intervalSet").onclick = guard(() => ble.interval(parseInt($("interval").value, 10) || 0));
   $("locSave").onclick  = guard(() => ble.loc($("lat").value.trim(), $("lon").value.trim()));
+  $("tzSave").onclick   = guard(() => {
+    const h = parseFloat($("tz").value);
+    if (!isNaN(h)) ble.setTz(Math.round(h * 3600));
+  });
   $("wifiSave").onclick = guard(() => {
     ble.setWifi($("ssid").value.trim(), $("pass").value);
     $("wifiStatus").textContent = "WiFi: connecting…";

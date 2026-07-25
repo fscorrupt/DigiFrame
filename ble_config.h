@@ -101,6 +101,7 @@ class DfCtrlCB : public NimBLECharacteristicCallbacks {
     else if (op == "celebrate")  postTgCmd(TGC_CELEBRATE, d["type"] | "", 0, d["message"] | "");
     else if (op == "stop")       postTgCmd(TGC_STOP);
     else if (op == "loc")        postTgCmd(TGC_SET_LOC, d["lat"] | "", 0, d["lon"] | "");
+    else if (op == "tz")         postTgCmd(TGC_SET_TZ, String((int)(d["seconds"] | 0)));
     else if (op == "tgconfig")   postTgCmd(TGC_SET_TG, d["token"] | "", 0, d["chat"] | "");
     else if (op == "tgtest")     postTgCmd(TGC_TGTEST);
     // typed special days + Home Assistant config: hand the whole JSON to core 1

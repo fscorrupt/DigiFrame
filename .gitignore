@@ -4,10 +4,9 @@ config.h.local-backup
 # local test builds with real credentials baked in — never commit
 build-local/
 
-# heavy build intermediates (flashable .bins are committed)
-build/*.elf
-build/*.map
-build/esp32.esp32.esp32s3/
+# build output — produced locally and published by the release workflow
+# (.github/workflows/release.yml), so it's never committed
+build/
 
 # local Claude Code settings
 .claude/settings.local.json

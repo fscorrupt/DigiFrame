@@ -1,0 +1,109 @@
+name: Release firmware
+
+# Tag a commit (e.g. `git tag v1.0.0 && git push origin v1.0.0`) to build the
+# firmware and publish a GitHub Release with a changelog and two flashable
+# binaries: a full image for a fresh board and an app-only image for updates.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write        # needed to create the release
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+    env:
+      FQBN: esp32:esp32:esp32s3:FlashSize=16M,PSRAM=opi,PartitionScheme=custom
+      TARGET: esp32s3
+      CORE_VERSION: 3.3.10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0        # full history + tags for the changelog
+
+      - name: Install arduino-cli
+        uses: arduino/setup-arduino-cli@v2
+
+      - name: Install ESP32 core + libraries
+        run: |
+          arduino-cli config init --overwrite
+          arduino-cli config add board_manager.additional_urls \
+            https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+          arduino-cli core update-index
+          arduino-cli core install "esp32:esp32@${CORE_VERSION}"
+          arduino-cli lib install \
+            "Adafruit GFX Library@1.12.6" \
+            "AnimatedGIF@2.2.0" \
+            "ArduinoJson@7.4.3" \
+            "UniversalTelegramBot@1.3.0" \
+            "NimBLE-Arduino@2.5.0" \
+            "PubSubClient@2.8.0" \
+            "ESP32 HUB75 LED MATRIX PANEL DMA Display@3.0.14"
+
+      - name: Compile
+        run: arduino-cli compile --fqbn "$FQBN" --output-dir build .
+
+      - name: Assemble release binaries
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          BASE="DigiFrame-${TAG}-${TARGET}"
+          python3 -m pip install "esptool==4.8.1"
+          BOOT_APP0=$(find "$HOME/.arduino15/packages/esp32" -name boot_app0.bin | head -n1)
+          test -n "$BOOT_APP0"
+          mkdir -p dist
+
+          # Full image (bootloader + partition table + app) — flash at 0x0.
+          # Use for a fresh board or after changing the partition layout.
+          python3 -m esptool --chip esp32s3 merge_bin \
+            --flash_size 16MB \
+            -o "dist/${BASE}-fullflash.bin" \
+            0x0     build/DigiFrame.ino.bootloader.bin \
+            0x8000  build/DigiFrame.ino.partitions.bin \
+            0xe000  "$BOOT_APP0" \
+            0x10000 build/DigiFrame.ino.bin
+
+          # App-only image — flash at 0x10000 (keeps GIFs/config) or upload via
+          # the dashboard OTA.
+          cp build/DigiFrame.ino.bin "dist/${BASE}-update.bin"
+
+          ls -la dist
+
+      - name: Build changelog
+        run: |
+          set -euo pipefail
+          PREV=$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || true)
+          {
+            echo "## DigiFrame ${GITHUB_REF_NAME} (${TARGET})"
+            echo
+            echo "### Changes"
+            if [ -n "$PREV" ]; then
+              git log --no-merges --pretty='- %s (%h)' "${PREV}..${GITHUB_REF_NAME}"
+            else
+              git log --no-merges --pretty='- %s (%h)'
+            fi
+            echo
+            echo "### Flashing"
+            echo "- **Fresh board / partition change** — flash the full image at \`0x0\`:"
+            echo '  ```'
+            echo "  esptool --chip esp32s3 --port COMx write-flash 0x0 DigiFrame-${GITHUB_REF_NAME}-${TARGET}-fullflash.bin"
+            echo '  ```'
+            echo "- **Update an existing board** — flash the app image at \`0x10000\` (keeps GIFs/config), or upload it via the dashboard **Firmware (OTA)**:"
+            echo '  ```'
+            echo "  esptool --chip esp32s3 --port COMx write-flash 0x10000 DigiFrame-${GITHUB_REF_NAME}-${TARGET}-update.bin"
+            echo '  ```'
+            echo
+            echo "See [FLASHING.md](FLASHING.md) for full instructions."
+          } > RELEASE_NOTES.md
+          cat RELEASE_NOTES.md
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "DigiFrame ${{ github.ref_name }}"
+          body_path: RELEASE_NOTES.md
+          files: dist/*
+          fail_on_unmatched_files: true

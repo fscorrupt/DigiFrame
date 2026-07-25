@@ -38,6 +38,7 @@ UUID; `namePrefix: "DigiFrame"` is an optional extra filter.
   "token": "123456...cdef",   // masked
   "lat": "12.97",
   "lon": "77.59",
+  "tz": 19800,                // UTC offset in seconds
   "bright": 100,
   "interval": 20,             // random-cameo minutes (0 = off)
   "mode": 0,                  // Mode enum
@@ -74,6 +75,7 @@ while a client is connected, and notifies on change.
 | Celebrate now (empty = today's day, else generic) | `{"op":"celebrate","type":"birthday","message":"HI"}` |
 | Back to clock | `{"op":"stop"}` |
 | Weather location | `{"op":"loc","lat":"12.97","lon":"77.59"}` |
+| Time zone (UTC offset in seconds) | `{"op":"tz","seconds":19800}` |
 | Telegram config | `{"op":"tgconfig","token":"...","chat":"..."}` |
 | Send a Telegram test | `{"op":"tgtest"}` |
 | Add/update a special day | `{"op":"event_add","date":"12-25","type":"custom","message":"MERRY CHRISTMAS"}` |

@@ -137,7 +137,7 @@ void setup() {
   }
 
   /* ---- time (IST) — SNTP keeps retrying once a network appears ---- */
-  configTime(TZ_OFFSET_SEC, 0, "pool.ntp.org", "time.google.com");
+  configTime(tzOffsetSec, 0, "pool.ntp.org", "time.google.com");
   if (WiFi.status() == WL_CONNECTED) {
     time_t now = 0;
     uint32_t t0 = millis();
@@ -254,6 +254,7 @@ void loop() {
       case TGC_EVENT_ADD:  ctlAddEventJson(req.strArg);                  break;
       case TGC_EVENT_DEL:  ctlDelEvent(req.strArg);                     break;
       case TGC_SET_MQTT:   ctlSetMqttJson(req.strArg);                  break;
+      case TGC_SET_TZ:     ctlSetTz(req.strArg.toInt());                break;
       default: break;
     }
   }

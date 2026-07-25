@@ -78,6 +78,7 @@
     celebrate(type, message) { return this.control({ op: "celebrate", type: type || "", message: message || "" }); }
     stop()             { return this.control({ op: "stop" }); }
     loc(lat, lon)      { return this.control({ op: "loc", lat, lon }); }
+    setTz(seconds)     { return this.control({ op: "tz", seconds }); }
     tgconfig(token, chat) { return this.control({ op: "tgconfig", token, chat }); }
     tgtest()           { return this.control({ op: "tgtest" }); }
     addEvent(date, type, message) { return this.control({ op: "event_add", date, type, message }); }

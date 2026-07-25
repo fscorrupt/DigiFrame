@@ -18,6 +18,7 @@ String allowedChatId = ALLOWED_CHAT_ID;
    strlcpy race is harmless, a String heap realloc race is not. */
 char cfgLat[16]      = LATITUDE;
 char cfgLon[16]      = LONGITUDE;
+int  tzOffsetSec     = TZ_OFFSET_SEC;   // UTC offset in seconds (runtime-configurable)
 /* ---- Home Assistant / MQTT (off by default; editable at runtime) ---- */
 bool   mqttEnable = MQTT_ENABLE;
 String mqttHost   = MQTT_HOST;
@@ -45,7 +46,7 @@ enum TgCmd { TGC_NONE, TGC_PLAY_GIF,
              TGC_DEL_GIF, TGC_INTERVAL, TGC_SET_WIFI, TGC_SET_LOC,
              TGC_SET_TG, TGC_TGTEST, TGC_GIF_COMMIT,
              /* typed special-days + Home Assistant config (JSON in strArg) */
-             TGC_EVENT_ADD, TGC_EVENT_DEL, TGC_SET_MQTT };
+             TGC_EVENT_ADD, TGC_EVENT_DEL, TGC_SET_MQTT, TGC_SET_TZ };
 struct TgRequest {
   TgCmd    cmd     = TGC_NONE;
   String   strArg  = "";       // primary string (name / text / ssid / lat / token)
