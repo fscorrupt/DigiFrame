@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#141420">
+<title>DigiFrame</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⏰</text></svg>">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <h1>⏰ DigiFrame</h1>
+  <span id="conn" class="pill">offline</span>
+</div>
+<p class="sub">Set up and control your smart clock over Bluetooth.</p>
+
+<!-- ============ CONNECT GATE ============ -->
+<section id="gate" class="hero">
+  <div class="big">📡</div>
+  <p class="note">Pair with your frame to configure WiFi, messages, GIFs and more.<br>
+  Make sure the frame is powered on and nearby.</p>
+  <button id="connectBtn">Connect over Bluetooth</button>
+  <div class="st" id="gateStatus"></div>
+</section>
+
+<!-- ============ NO-BLUETOOTH FALLBACK (iOS / unsupported) ============ -->
+<section id="fallback" class="hidden">
+  <fieldset>
+    <legend>This browser can't use Bluetooth</legend>
+    <p class="note">
+      Web Bluetooth isn't available here (iPhone/iPad Safari doesn't support it yet).
+      You can still set up and control <b id="fbName">your frame</b> from the same WiFi:
+    </p>
+    <ol class="note">
+      <li>On your phone's WiFi settings, join the hotspot
+          <b id="fbAp">DigiFrame</b> (password <b id="fbApPass">digiframe123</b>).</li>
+      <li>Open <a href="http://192.168.4.1" id="fbPortal">http://192.168.4.1</a> — the
+          frame's own dashboard opens with the same controls.</li>
+      <li>Enter your home WiFi there. Once the frame is online you can reach the
+          dashboard at <a href="http://digiframe.local">http://digiframe.local</a>.</li>
+    </ol>
+    <p class="note">For remote control from anywhere, use the Telegram bot (see the project README).</p>
+    <p class="note">Or open this page in <b>Chrome or Edge</b> on Android, Windows, macOS or Linux to use Bluetooth.</p>
+  </fieldset>
+</section>
+
+<!-- ============ DASHBOARD ============ -->
+<main id="dash" class="hidden">
+
+  <fieldset>
+    <legend>Send a message</legend>
+    <div class="row">
+      <input id="msg" class="grow" placeholder="Hello!">
+      <button id="msgSend">Send</button>
+      <button id="msgPin" class="ghost">Pin</button>
+    </div>
+    <div class="row" style="margin-top:6px">
+      <button id="btnCelebrate" class="ghost">🎉 Celebrate test</button>
+      <button id="btnStop" class="ghost">⏹ Back to clock</button>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Brightness</legend>
+    <input type="range" min="1" max="255" value="100" id="bright" style="width:100%">
+    <div class="st" id="brightVal"></div>
+  </fieldset>
+
+  <fieldset>
+    <legend>GIFs <span class="st">(character pack shows up as random cameos)</span></legend>
+    <ul id="gifList"></ul>
+    <div class="row">
+      <input type="file" id="gifFile" accept=".gif" class="grow">
+    </div>
+    <div class="row" style="margin-top:6px">
+      <input id="gifName" placeholder="name" style="width:120px">
+      <label><input type="checkbox" id="gifPack"> character pack</label>
+      <button id="gifUpload">Upload</button>
+    </div>
+    <div class="st" id="uploadStatus"></div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Random cameo interval</legend>
+    <div class="row">
+      <input id="interval" type="number" min="0" value="20" style="width:80px"> min (0 = off)
+      <button id="intervalSet">Set</button>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Special days</legend>
+    <ul id="evList"></ul>
+    <div class="row">
+      <input id="evDate" placeholder="MM-DD" style="width:80px">
+      <select id="evType"><option value="custom">custom</option><option value="birthday">birthday</option></select>
+    </div>
+    <div class="row" style="margin-top:6px">
+      <input id="evMsg" class="grow" placeholder="message">
+      <button id="evAdd">Add / update</button>
+    </div>
+    <div class="st">type sets the visual: custom = fireworks, birthday = cake + confetti</div>
+  </fieldset>
+
+  <fieldset>
+    <legend>WiFi</legend>
+    <input id="ssid" class="grow" placeholder="network name (SSID)" style="width:100%">
+    <div class="row" style="margin-top:6px">
+      <input id="pass" type="password" class="grow" placeholder="password">
+      <button id="wifiSave">Save &amp; connect</button>
+    </div>
+    <div class="st" id="wifiStatus"></div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Telegram</legend>
+    <input id="tgToken" class="grow" placeholder="bot token (from @BotFather)" style="width:100%">
+    <div class="row" style="margin-top:6px">
+      <input id="tgChat" class="grow" placeholder="allowed chat id">
+      <button id="tgSave">Save</button>
+    </div>
+    <button id="tgTest" class="ghost" style="margin-top:6px">Test Telegram send</button>
+    <div class="st" id="tgStatus"></div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Weather location</legend>
+    <div class="row">
+      <input id="lat" placeholder="latitude" style="width:40%">
+      <input id="lon" placeholder="longitude" style="width:40%">
+      <button id="locSave">Save</button>
+    </div>
+    <div class="st">decimal degrees, e.g. 12.97 / 77.59 — weather refreshes right away</div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Home Assistant (MQTT)</legend>
+    <label><input type="checkbox" id="mqEn"> enable</label>
+    <div class="row" style="margin-top:6px">
+      <input id="mqHost" class="grow" placeholder="broker host/IP">
+      <input id="mqPort" type="number" placeholder="1883" style="width:80px">
+    </div>
+    <div class="row" style="margin-top:6px">
+      <input id="mqUser" placeholder="username (optional)" style="width:45%">
+      <input id="mqPass" type="password" placeholder="password" style="width:45%">
+      <button id="mqSave">Save</button>
+    </div>
+    <div class="st">the clock announces itself to Home Assistant via MQTT discovery</div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Frame status</legend>
+    <div class="st" id="statusLine">—</div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Logs (live)</legend>
+    <pre id="log"></pre>
+  </fieldset>
+
+  <div class="row" style="margin-top:10px">
+    <button id="disconnectBtn" class="ghost">Disconnect</button>
+  </div>
+</main>
+
+<p class="sub" style="margin-top:24px; text-align:center">
+  Open source · <a href="https://github.com/">DigiFrame on GitHub</a> ·
+  Firmware OTA updates are done from the on-device dashboard.
+</p>
+
+<script src="ble.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

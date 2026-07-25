@@ -1,30 +1,50 @@
-/* DigiFrame — party mode + test mode */
+/* DigiFrame — celebration (special-day) mode + test mode */
 #pragma once
 
-/**********************  11. PARTY MODE  ******************************/
-void startParty(const String &who) {
-  mode = MODE_PARTY;
-  partyMsg = "HAPPY BIRTHDAY " + who + "!";
-  partyMsg.toUpperCase();
-  partyPhase = 0;
-  partyPhaseAt = millis();
-  dma->setBrightness8(PARTY_BRIGHTNESS);
-  bool haveCake = openGif("/cake.gif", true);
-  logLine("Party start (" + who + "), cake.gif=" + String(haveCake ? "yes" : "MISSING"));
-  if (!haveCake) {
-    partyPhase = 1;              // no gif on FS -> just scroll text
-    scrollText = partyMsg;
-    scrollX = PANEL_W;
+/**********************  11. CELEBRATION MODE  ***********************/
+/* A special day fires this: it runs the themed visual for its TYPE for a
+ * while, then a scrolling MESSAGE banner with fireworks, and loops. Merges
+ * the old "party mode" with the special-days engine.
+ *   type "birthday" -> cake.gif (or a procedural cake) + confetti
+ *   type "custom"   -> fireworks + confetti  */
+
+/* procedural fireworks + confetti scene (the "custom" celebration visual) */
+void drawCelebrationScene(uint32_t f) {
+  uint16_t confs[4] = { dma->color565(255, 120, 160), dma->color565(140, 200, 255),
+                        dma->color565(255, 220, 120), dma->color565(170, 255, 170) };
+  for (int k = 0; k < 10; k++) {                    // confetti drifting down
+    int rx = (prng8(k * 29 + 3) + k * 5) % PANEL_W;
+    int ry = (int)((f / 2 + prng8(k * 13)) % PANEL_H);
+    dma->drawPixel(rx, ry, confs[k % 4]);
   }
+  drawFirework(14, 22, f,      dma->color565(255, 120, 160), dma->color565(255, 220, 120));
+  drawFirework(50, 18, f + 27, dma->color565(140, 200, 255), dma->color565(190, 150, 255));
+  drawFirework(32, 32, f + 53, dma->color565(170, 255, 170), dma->color565(255, 200, 120));
 }
-void runParty() {
-  static uint32_t lastPartyTick = 0;
-  if (millis() - lastPartyTick > 66) {   // keep animations ticking at ~15fps
-    lastPartyTick = millis();
+
+void startCelebration(const String &type, const String &message) {
+  mode         = MODE_CELEBRATE;
+  celebType    = type.length() ? type : "custom";
+  celebMsg     = message;
+  if (!celebMsg.length())                           // default banner per type
+    celebMsg = (celebType == "birthday") ? "HAPPY BIRTHDAY!" : "CELEBRATE!";
+  celebMsg.toUpperCase();
+  celebPhase   = 0;
+  celebPhaseAt = millis();
+  dma->setBrightness8(CELEBRATE_BRIGHTNESS);
+  bool gifVisual = (celebType == "birthday") && openGif("/cake.gif", true);
+  logLine("Celebration (" + celebType + "): \"" + celebMsg + "\"" +
+          (celebType == "birthday" ? String(" cake.gif=") + (gifVisual ? "yes" : "no") : ""));
+}
+
+void runCelebration() {
+  static uint32_t lastTick = 0;
+  if (millis() - lastTick > 66) {          // keep animations ticking at ~15fps
+    lastTick = millis();
     frameNo++;
   }
-  // alternate: 45 s of cake (GIF if present, else procedural scene), then message
-  if (partyPhase == 0) {
+  // alternate: ~45 s of the themed visual, then ~20 s of the message banner
+  if (celebPhase == 0) {
     if (gifOpen) {
       int res = gif.playFrame(true, NULL);
       blitGifCanvas();
@@ -32,16 +52,17 @@ void runParty() {
       if (res == 0) gif.reset();
     } else {
       dma->fillScreen(0);
-      drawCakeAndCat(frameNo);
+      if (celebType == "birthday") drawCakeAndCat(frameNo);
+      else                          drawCelebrationScene(frameNo);
       dma->flipDMABuffer();
     }
-    if (millis() - partyPhaseAt > 45000) {
+    if (millis() - celebPhaseAt > 45000) {
       closeGif();
-      partyPhase = 1;
-      partyPhaseAt = millis();
-      scrollText = partyMsg;
+      celebPhase = 1;
+      celebPhaseAt = millis();
+      scrollText = celebMsg;
       scrollX = PANEL_W;
-      logLine("party -> phase 1 (message)");
+      logLine("celebration -> banner phase");
     }
   } else {
     if (renderScroll(C_MSG)) {
@@ -50,10 +71,10 @@ void runParty() {
       drawFirework(50, 52, frameNo + 40, dma->color565(140, 200, 255), dma->color565(190, 150, 255));
       dma->flipDMABuffer();
     }
-    if (millis() - partyPhaseAt > 20000) {
-      partyPhase = 0;
-      partyPhaseAt = millis();
-      if (LittleFS.exists("/cake.gif")) openGif("/cake.gif", true);
+    if (millis() - celebPhaseAt > 20000) {
+      celebPhase = 0;
+      celebPhaseAt = millis();
+      if (celebType == "birthday" && LittleFS.exists("/cake.gif")) openGif("/cake.gif", true);
     }
   }
 }
@@ -68,8 +89,8 @@ void runParty() {
  *   5  Clock – cloudy
  *   6  Clock – clear night (stars + moon)
  *   7  Scroll message (/msg style)
- *   8  Party – procedural cake + cat (no GIF needed)
- *   9  Party – scroll banner + fireworks
+ *   8  Celebration – procedural cake theme (no GIF needed)
+ *   9  Celebration – scroll banner + fireworks
  *  10  GIF  – cake.gif if present, else skip
  *  (restores original weather code and returns to clock when done) */
 #define TEST_STEPS       11
@@ -128,7 +149,7 @@ void runTest() {
     static uint32_t scrollStepAt = 0;
     if (scrollStepAt != testStepAt) {
       scrollStepAt = testStepAt;
-      scrollText = "HELLO " + String(HER_NAME) + "! THIS IS A TEST MESSAGE";
+      scrollText = "HELLO! THIS IS A TEST MESSAGE";
       scrollX = PANEL_W;
     }
     if (renderScroll(C_MSG)) dma->flipDMABuffer();
@@ -136,7 +157,7 @@ void runTest() {
   }
 
   if (testStep == 8) {
-    // Procedural party – cake + cat
+    // Procedural celebration – cake theme
     static uint32_t lastTick = 0;
     if (ms - lastTick > 66) { lastTick = ms; frameNo++; }
     dma->fillScreen(0);
@@ -146,11 +167,11 @@ void runTest() {
   }
 
   if (testStep == 9) {
-    // Party scroll + fireworks
+    // Celebration scroll + fireworks
     static uint32_t partyScrollStepAt = 0;
     if (partyScrollStepAt != testStepAt) {
       partyScrollStepAt = testStepAt;
-      scrollText = "HAPPY BIRTHDAY " + String(HER_NAME) + "!";
+      scrollText = "CELEBRATION TIME!";
       scrollX = PANEL_W;
     }
     static uint32_t lastTick = 0;

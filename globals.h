@@ -18,6 +18,13 @@ String allowedChatId = ALLOWED_CHAT_ID;
    strlcpy race is harmless, a String heap realloc race is not. */
 char cfgLat[16]      = LATITUDE;
 char cfgLon[16]      = LONGITUDE;
+/* ---- Home Assistant / MQTT (off by default; editable at runtime) ---- */
+bool   mqttEnable = MQTT_ENABLE;
+String mqttHost   = MQTT_HOST;
+int    mqttPort   = MQTT_PORT;
+String mqttUser   = MQTT_USER;
+String mqttPass   = MQTT_PASS;
+volatile bool mqttConfigDirty = false;  // set by web/BLE (core 1), applied by mqttTask (core 0)
 volatile bool weatherNow   = false;  // web handler asks for an immediate refetch
 volatile bool tgTokenDirty = false;  // set by web handler (core 1), applied by tgTask (core 0)
 bool          portalActive = false;  // setup hotspot + captive portal active
@@ -27,14 +34,25 @@ volatile bool wifiRetryNow = false;  // web handler asks for an immediate STA (r
 void handleTelegram();
 void fetchWeather();
 
-/* ---- cross-core command queue: Telegram task (core 0) posts here,
-        render loop (core 1) consumes it — avoids LittleFS + mode races ---- */
+/* ---- cross-core command queue: the Telegram task AND the BLE config
+        task (both core 0) post here; the render loop (core 1) consumes it —
+        this is the ONLY safe way for core-0 work to touch LittleFS / the DMA
+        panel / openGif / saveConfig. New actions from either task must go
+        through postTgCmd(), never call the ctl* functions directly. ---- */
 enum TgCmd { TGC_NONE, TGC_PLAY_GIF,
-             TGC_MSG, TGC_PIN, TGC_STOP, TGC_PARTY, TGC_BRIGHTNESS, TGC_TEST };
+             TGC_MSG, TGC_PIN, TGC_STOP, TGC_CELEBRATE, TGC_BRIGHTNESS, TGC_TEST,
+             /* config actions added for the BLE dashboard (see control.h) */
+             TGC_DEL_GIF, TGC_INTERVAL, TGC_SET_WIFI, TGC_SET_LOC,
+             TGC_SET_TG, TGC_TGTEST, TGC_GIF_COMMIT,
+             /* typed special-days + Home Assistant config (JSON in strArg) */
+             TGC_EVENT_ADD, TGC_EVENT_DEL, TGC_SET_MQTT };
 struct TgRequest {
-  TgCmd   cmd      = TGC_NONE;
-  String  strArg   = "";
-  uint8_t intArg   = 0;
+  TgCmd    cmd     = TGC_NONE;
+  String   strArg  = "";       // primary string (name / text / ssid / lat / token)
+  String   strArg2 = "";       // secondary string (pass / lon / chat)
+  uint8_t  intArg  = 0;        // brightness value, or GIF-upload pack flag
+  uint8_t *buf     = nullptr;   // TGC_GIF_COMMIT: PSRAM buffer (core 1 frees it)
+  size_t   bufLen  = 0;
 };
 volatile bool    tgReqReady = false;
 TgRequest        tgReq;
@@ -43,18 +61,26 @@ SemaphoreHandle_t tgReqMutex = NULL;   // guards tgReq / tgReqReady
 /* ---- background task handles (network work runs on core 0) ---- */
 TaskHandle_t tgTaskHandle      = NULL;
 TaskHandle_t weatherTaskHandle = NULL;
+TaskHandle_t mqttTaskHandle    = NULL;
 SemaphoreHandle_t logMutex     = NULL;   // guards logBuf / logHead / logSeq
-void postTgCmd(TgCmd cmd, const String &str = "", uint8_t i = 0) {
+void postTgCmd(TgCmd cmd, const String &str = "", uint8_t i = 0,
+               const String &str2 = "", uint8_t *buf = nullptr, size_t buflen = 0) {
   if (!tgReqMutex) return;
   xSemaphoreTake(tgReqMutex, portMAX_DELAY);
-  tgReq.cmd    = cmd;
-  tgReq.strArg = str;
-  tgReq.intArg = i;
-  tgReqReady   = true;
+  // single-slot queue: if an unconsumed GIF-upload commit is being
+  // overwritten, free its buffer first so we don't leak PSRAM.
+  if (tgReqReady && tgReq.cmd == TGC_GIF_COMMIT && tgReq.buf) free(tgReq.buf);
+  tgReq.cmd     = cmd;
+  tgReq.strArg  = str;
+  tgReq.strArg2 = str2;
+  tgReq.intArg  = i;
+  tgReq.buf     = buf;
+  tgReq.bufLen  = buflen;
+  tgReqReady    = true;
   xSemaphoreGive(tgReqMutex);
 }
 
-enum Mode { MODE_CLOCK, MODE_MSG, MODE_GIF, MODE_PARTY, MODE_TEST, MODE_SETUP };
+enum Mode { MODE_CLOCK, MODE_MSG, MODE_GIF, MODE_CELEBRATE, MODE_TEST, MODE_SETUP };
 Mode mode = MODE_CLOCK;
 
 String   scrollText     = "";
@@ -62,13 +88,15 @@ int      scrollX        = PANEL_W;
 uint32_t msgEndsAt      = 0;          // millis when /msg expires (0 = pinned)
 String   currentGifPath = "";
 bool     gifOpen        = false;
-bool     gifIsUserPlay  = false;   // true = /play or /party, false = cameo (plays once)
+bool     gifIsUserPlay  = false;   // true = /play or /celebrate, false = cameo (plays once)
 File     fsGifFile;
 
-String   lastPartyDate  = "";         // "MM-DD" already celebrated today
-String   partyMsg       = "";
-uint8_t  partyPhase     = 0;          // 0 = gif, 1 = message
-uint32_t partyPhaseAt   = 0;
+/* ---- celebration (special-day) mode: merged party + special days ---- */
+String   lastCelebDate  = "";         // "MM-DD" already celebrated today
+String   celebMsg       = "";
+String   celebType      = "custom";   // "custom" | "birthday" — drives the visual theme
+uint8_t  celebPhase     = 0;          // 0 = visual, 1 = message banner
+uint32_t celebPhaseAt   = 0;
 
 /* ---- /test mode: cycles through every screen type ---- */
 uint8_t  testStep       = 0;
@@ -153,4 +181,4 @@ void weatherTask(void *pv) {
 #define C_TEMP   dma->color565(173, 216, 255)   // pastel blue
 #define C_DATE   dma->color565(200, 190, 255)   // lavender
 #define C_MSG    dma->color565(255, 210, 150)   // warm peach
-#define C_HEART  dma->color565(255,  80, 120)
+#define C_ACCENT dma->color565(255,  80, 120)    // neutral highlight (seconds head, sparkles)

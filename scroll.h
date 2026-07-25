@@ -12,8 +12,8 @@ bool renderScroll(uint16_t color) {        // returns true if a new frame was dr
   dma->setTextColor(color);
   dma->setCursor(scrollX, 25);
   dma->print(scrollText);
-  drawHeart(4, 54, C_HEART);
-  drawHeart(53, 54, C_HEART);
+  drawSpark(4, 54, C_ACCENT);
+  drawSpark(53, 54, C_ACCENT);
   scrollX--;
   // Measure exact rendered width once per text change using getTextBounds,
   // so the loop point is pixel-perfect regardless of string content.

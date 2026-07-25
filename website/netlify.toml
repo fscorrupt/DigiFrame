@@ -1,0 +1,20 @@
+# DigiFrame website — static deploy (no build step).
+# Netlify: point a site at the `website/` folder (Base directory = website,
+# Publish directory = website). Web Bluetooth requires HTTPS, which Netlify
+# provides automatically.
+
+[build]
+  publish = "."
+  command = ""
+
+# The service worker must always be revalidated so app updates ship promptly.
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"

@@ -10,19 +10,19 @@
  * postTgCmd() and are applied by loop() on core 1. */
 
 const char REPLY_KB[] =
-  "[[\"\xF0\x9F\x8E\x89 Party\",\"\xE2\x8F\xB9 Stop\"],"
+  "[[\"\xF0\x9F\x8E\x89 Celebrate\",\"\xE2\x8F\xB9 Stop\"],"
    "[\"\xE2\x96\xB6 Play GIF\",\"\xF0\x9F\x92\xA1 Brightness\"],"
    "[\"\xF0\x9F\x93\x8A Status\",\"\xF0\x9F\x93\x83 GIF List\"],"
    "[\"\xF0\x9F\x93\x85 Events\",\"\xF0\x9F\xA7\xAA Test\"]]";
 
 void sendMainMenu(const String &chat) {
   bot.sendMessageWithReplyKeyboard(chat,
-    "\xF0\x9F\x92\x97 DigiFrame — tap a button below, or type:\n"
+    "\xE2\x8F\xB0 DigiFrame — tap a button below, or type:\n"
     "/msg <text> — scroll for 10 min\n"
     "/pin <text> — scroll until \xE2\x8F\xB9 Stop\n"
     "/play <name>   /del <name>\n"
     "/brightness <1-255>\n"
-    "/event add MM-DD Name   /event del MM-DD\n"
+    "/event add MM-DD [birthday|custom] message   /event del MM-DD\n"
     "/char every <min> (0=off)   /char del <name>\n"
     "GIF upload: http://digiframe.local",
     "", REPLY_KB, true);   // resize keyboard to fit
@@ -76,7 +76,7 @@ void handleTelegram() {
               (m.text.length() ? (" text='" + m.text + "'") : String(" (non-text)")));
       if (m.chat_id != allowedChatId) {
         logLine("  -> IGNORED: chat_id != allowed (" + allowedChatId + ")");
-        bot.sendMessage(m.chat_id, "Sorry, this frame belongs to someone special.");
+        bot.sendMessage(m.chat_id, "Sorry, you're not authorized to control this clock.");
         continue;
       }
 
@@ -102,7 +102,7 @@ void handleTelegram() {
       t.trim();
 
       /* ---- reply-keyboard buttons map onto the classic commands ---- */
-      if      (t == "\xF0\x9F\x8E\x89 Party")      t = "/party";
+      if      (t == "\xF0\x9F\x8E\x89 Celebrate")  t = "/celebrate";
       else if (t == "\xE2\x8F\xB9 Stop")           t = "/stop";
       else if (t == "\xF0\x9F\x93\x8A Status")     t = "/status";
       else if (t == "\xF0\x9F\x93\x83 GIF List")   t = "/list";
@@ -171,45 +171,44 @@ void handleTelegram() {
         bot.sendMessage(m.chat_id, "Brightness set.");
       }
       else if (t.startsWith("/event add ")) {
-        // /event add 07-28 Her Birthday
-        String rest = t.substring(11);
-        int sp = rest.indexOf(' ');
-        if (sp == 5 && numEvents < MAX_EVENTS) {
-          events[numEvents++] = { rest.substring(0, 5), rest.substring(6) };
-          saveEvents();
-          bot.sendMessage(m.chat_id, "Event saved!");
-        } else bot.sendMessage(m.chat_id, "Format: /event add MM-DD Name");
+        // /event add MM-DD [birthday|custom] message
+        String rest = t.substring(11); rest.trim();
+        if (rest.length() >= 6 && rest[2] == '-' && rest[5] == ' ') {
+          String date = rest.substring(0, 5);
+          String tail = rest.substring(6); tail.trim();
+          String type = "custom";
+          int sp = tail.indexOf(' ');
+          String firstTok = (sp < 0) ? tail : tail.substring(0, sp);
+          if (firstTok == "birthday" || firstTok == "custom") {   // optional leading type
+            type = firstTok;
+            tail = (sp < 0) ? "" : tail.substring(sp + 1);
+            tail.trim();
+          }
+          bool ok = ctlAddEvent(date, type, tail);
+          bot.sendMessage(m.chat_id, ok ? "Event saved!" : "Couldn't save (bad date or list full).");
+        } else bot.sendMessage(m.chat_id, "Format: /event add MM-DD [birthday|custom] message");
       }
       else if (t.startsWith("/event del ")) {
-        String d = t.substring(11);
-        bool found = false;
-        for (int k = 0; k < numEvents; k++)
-          if (events[k].date == d) {
-            for (int j = k; j < numEvents - 1; j++) events[j] = events[j + 1];
-            numEvents--; found = true; break;
-          }
-        if (found) saveEvents();
-        bot.sendMessage(m.chat_id, found ? "Removed." : "No event on that date.");
+        String d = t.substring(11); d.trim();
+        bot.sendMessage(m.chat_id, ctlDelEvent(d) ? "Removed." : "No event on that date.");
       }
       else if (t == "/events") {
         String out = "Special days:\n";
         for (int k = 0; k < numEvents; k++)
-          out += "  " + events[k].date + "  " + events[k].name + "\n";
-        out += "\nAdd: /event add MM-DD Name\nRemove: /event del MM-DD";
+          out += "  " + events[k].date + "  [" + events[k].type + "]  " + events[k].message + "\n";
+        if (!numEvents) out += "  (none yet)\n";
+        out += "\nAdd: /event add MM-DD [birthday|custom] message\nRemove: /event del MM-DD";
         bot.sendMessage(m.chat_id, out);
       }
-      else if (t == "/party") {
-        String who = HER_NAME;
-        for (int k = 0; k < numEvents; k++)
-          if (events[k].date == todayMMDD()) who = events[k].name;
-        postTgCmd(TGC_PARTY, who);
-        bot.sendMessage(m.chat_id, "PARTY MODE! \xF0\x9F\x8E\x89 (\xE2\x8F\xB9 Stop to end)");
+      else if (t == "/celebrate" || t == "/party") {
+        postTgCmd(TGC_CELEBRATE);   // empty -> ctlCelebrate (today's event, else generic)
+        bot.sendMessage(m.chat_id, "Celebration mode! \xF0\x9F\x8E\x89 (\xE2\x8F\xB9 Stop to end)");
       }
       else if (t == "/test") {
         postTgCmd(TGC_TEST, m.chat_id);
         bot.sendMessage(m.chat_id,
           "\xF0\x9F\xA7\xAA Test mode: cycling through all screens (~4 s each).\n"
-          "Clock \xC3\x97 7 weather types \xE2\x86\x92 scroll \xE2\x86\x92 party cake \xE2\x86\x92 party banner \xE2\x86\x92 GIF\n"
+          "Clock \xC3\x97 7 weather types \xE2\x86\x92 scroll \xE2\x86\x92 celebration cake \xE2\x86\x92 celebration banner \xE2\x86\x92 GIF\n"
           "Tap \xE2\x8F\xB9 Stop to cancel early.");
       }
       else if (t == "/stop") {

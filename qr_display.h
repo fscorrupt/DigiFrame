@@ -4,15 +4,17 @@
 
 /**********************  12c. SETUP QR DISPLAY  ***********************/
 /* While the setup hotspot is up (MODE_SETUP) the panel shows a QR code.
- * Before a phone joins, it encodes the hotspot credentials — one scan
- * joins the network and the captive portal pops the config page. Once a
- * station is connected it switches to the portal URL, so scanning again
- * opens http://192.168.4.1 directly if the captive popup didn't appear.
+ * Before a phone joins, it encodes the CLOUD DASHBOARD URL (with this
+ * frame's BLE name in the fragment) — scanning opens the site, which pairs
+ * over Web Bluetooth to provision WiFi (Android/desktop Chrome). iPhone or
+ * no-Bluetooth users instead join the "DigiFrame" hotspot; once a station
+ * connects the QR switches to http://192.168.4.1 so the on-device
+ * dashboard opens directly if the captive popup didn't appear.
  *
- * Version <= 3 (29x29 modules max) fits both texts at ECC_LOW and draws
- * at 2x = 58x58 px, centered. QR wants dark-on-light, so the background
- * is lit and modules are unlit LEDs. The image is static — we only
- * redraw (both DMA buffers) when the encoded text changes. */
+ * The URL is longer than the old WIFI: payload, so we allow up to version 6
+ * (41x41 modules). qrToPanel scales by PANEL_W/size (2x at v<=3, 1x above),
+ * always centered. QR wants dark-on-light, so the background is lit and
+ * modules are unlit LEDs. Static image — redraw only when the text changes. */
 
 String qrLastText = "";
 
@@ -35,13 +37,13 @@ static void qrToPanel(esp_qrcode_handle_t qrcode) {
 void renderSetupQR() {
   String txt = (WiFi.softAPgetStationNum() > 0)
                  ? String("http://192.168.4.1")
-                 : String("WIFI:T:WPA;S:") + AP_SSID + ";P:" + AP_PASS + ";;";
+                 : String(CLOUD_SITE_URL) + "/#d=" + bleDeviceName();
   if (txt == qrLastText) return;          // static image — redraw only on change
   qrLastText = txt;
 
   esp_qrcode_config_t cfg = {
     .display_func       = qrToPanel,
-    .max_qrcode_version = 3,              // 29x29 -> 58x58 px at 2x
+    .max_qrcode_version = 6,              // up to 41x41 -> 41 px at 1x (fits the URL)
     .qrcode_ecc_level   = ESP_QRCODE_ECC_LOW,
   };
   if (esp_qrcode_generate(&cfg, txt.c_str()) != ESP_OK) {

@@ -5,11 +5,18 @@ Prebuilt binaries live in `build/` after a compile.
 ## Build (command line)
 
 ```
-arduino-cli compile --fqbn esp32:esp32:esp32s3:FlashSize=16M,PSRAM=opi,PartitionScheme=fatflash --output-dir build .
+arduino-cli compile --fqbn esp32:esp32:esp32s3:FlashSize=16M,PSRAM=opi,PartitionScheme=custom --output-dir build .
 ```
 
-(Or Arduino IDE: Sketch → Export Compiled Binary with the board settings
-from the header of `DigiFrame.ino`.)
+`PartitionScheme=custom` uses the sketch's `partitions.csv` (4 MB OTA app
+slots + ~7.9 MB `ffat`). In Arduino IDE pick Partition Scheme **Custom** with
+the other board settings from the header of `DigiFrame.ino`.
+
+> Repartition caveat: this 4 MB-app layout moves the `ffat` data partition
+> (app1 now at `0x410000`, ffat at `0x810000`). The first flash that carries
+> the new partition table (the `_0x0` or `merged` image, address `0x0`) wipes
+> LittleFS once — the default GIF pack re-seeds and config resets to defaults.
+> App-only flashes at `0x10000` don't touch it.
 
 ## Flash — pick ONE of these
 
@@ -60,15 +67,31 @@ erases the LittleFS partition too:
 esptool --chip esp32s3 --port COM5 write-flash 0x0 build/DigiFrame.ino.merged.bin
 ```
 
+> Note: install `NimBLE-Arduino` (Bluetooth config service) and `PubSubClient`
+> (Home Assistant MQTT) from Library Manager before building. The app is ~1.75 MB
+> and now targets a **4 MB** app partition (`PartitionScheme=custom`), so there's
+> plenty of headroom.
+
 ## First boot / new WiFi
 
-If the frame can't reach the stored WiFi it starts a hotspot and shows
-a QR code on the panel:
+If the frame can't reach the stored WiFi it starts a hotspot and shows a
+QR code on the panel. There are two ways to set it up:
 
-1. Scan the QR → phone joins `DigiFrame` (pass `digiframe123`).
-2. The config page pops up (or open http://192.168.4.1, or scan the QR
-   again once connected — it switches to the URL).
-3. Enter your WiFi in the **WiFi** section → Save & connect.
-4. The frame connects and returns to the clock; the dashboard is then
-   at http://digiframe.local. If the old network reappears instead, the
-   frame rejoins it automatically.
+**Bluetooth (Android / Chrome / Edge) — recommended**
+
+1. Scan the panel QR → it opens the cloud dashboard (set by `CLOUD_SITE_URL`
+   in `config.h`; you host `website/` yourself — see `website/README.md`).
+2. Tap **Connect over Bluetooth** and pick your frame (`DigiFrame-XXXX`).
+3. Enter your WiFi in the **WiFi** section → Save & connect. The frame
+   reconnects on its own; you can keep configuring everything over Bluetooth.
+
+**On-device dashboard (iPhone / no Bluetooth / recovery)**
+
+1. On your phone's WiFi settings, join `DigiFrame` (pass `digiframe123`).
+2. The captive page pops up (or open http://192.168.4.1 — once joined the
+   panel QR switches to this URL too).
+3. Enter your WiFi → Save & connect. When online, the dashboard is at
+   http://digiframe.local.
+
+Either way, if the old network reappears the frame rejoins it automatically.
+For control when you're away from home, use the Telegram bot.

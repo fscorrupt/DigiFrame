@@ -8,7 +8,7 @@
  *   19:00-06:00  a crescent moon drifts by, stars twinkle
  *   20:00-05:00  a sleeping cat appears with rising "Zzz"
  *   live weather clouds drift, rain falls, lightning flickers
- *   every ~90 s a little heart floats across; heart-burst on the hour */
+ *   a playful sprite/vehicle wanders past now and then; sparkles on the hour */
 
 uint32_t frameNo        = 0;
 uint32_t hourBurstUntil = 0;
@@ -27,24 +27,27 @@ uint32_t   nextSceneAt   = 15000;
 int        activeSprite  = 0;
 int        duoPhase      = 0;   // 0=approach, 1=paused/high-five, 2=retreat
 
-/* the couple scene: a man and woman walk to a bench and watch the moon */
-enum CoupleState { CPL_NONE, CPL_WALKIN, CPL_SIT, CPL_WALKOUT };
-CoupleState coupleState   = CPL_NONE;
-int         coupleX       = -20;
-int         benchXFixed   = 20;
-uint32_t    coupleSitUntil = 0;
-uint32_t    nextCoupleAt   = 60000UL;
 bool       nightFlutterOn     = false;
 int        nightFlutterX      = -6;
 uint32_t   nextNightFlutterAt = 20000;
 
 uint8_t prng8(uint16_t n) { n ^= n << 7; n ^= n >> 9; n *= 31; return n & 0xFF; }
 
+/* reserved for a future "anniversary" celebration theme — not used by the
+   default clock scene (kept small so it's cheap to re-enable later). */
 void drawHeart(int x, int y, uint16_t c) {
   dma->drawPixel(x + 1, y, c);     dma->drawPixel(x + 3, y, c);
   dma->drawFastHLine(x, y + 1, 5, c);
   dma->drawFastHLine(x + 1, y + 2, 3, c);
   dma->drawPixel(x + 2, y + 3, c);
+}
+/* tiny neutral 4-point sparkle — the ambient scene's accent flourish */
+void drawSpark(int x, int y, uint16_t c) {
+  dma->drawPixel(x, y, c);
+  dma->drawPixel(x - 1, y, c);
+  dma->drawPixel(x + 1, y, c);
+  dma->drawPixel(x, y - 1, c);
+  dma->drawPixel(x, y + 1, c);
 }
 void drawZ(int x, int y, uint16_t c) {          // tiny 3x3 "z"
   dma->drawFastHLine(x, y, 3, c);
@@ -465,8 +468,9 @@ void drawFirework(int cx, int cy, uint32_t f, uint16_t c1, uint16_t c2) {
   }
 }
 
-/* The birthday clock-face scene: the cat scampers up to the cake and
- * bats at it, happy hearts popping above. Replaces the sun/moon arc. */
+/* The "birthday" celebration theme: the cat scampers up to the cake and
+ * bats at it, sparkles popping above. Used by MODE_CELEBRATE, not the
+ * default clock. */
 void drawCakeAndCat(uint32_t f) {
   const int BOT = 45, TOP = 19;
   uint16_t CATC = dma->color565(255, 170, 190);
@@ -494,61 +498,11 @@ void drawCakeAndCat(uint32_t f) {
   int paw = pawing ? ((f / 5) % 2) : 0;         // bat up and down
   drawWalkCat(cx, BOT, CATC, (f / 6) % 2, paw); // small hop = paw swipe
   if (pawing && (f / 5) % 2)
-    drawHeart(cakeX + 3, BOT - 18, C_HEART);    // happy heart over cake
-}
-
-/* ---------- park bench + a couple who stop to watch the moon ---------- */
-void drawBench(int x, int y) {
-  uint16_t wood = dma->color565(150, 95, 60);
-  dma->drawFastHLine(x - 1, y - 2, 12, wood);     // seat
-  dma->drawFastVLine(x,     y - 2, 3, wood);      // front legs
-  dma->drawFastVLine(x + 9, y - 2, 3, wood);
-  dma->drawFastHLine(x - 1, y - 6, 12, wood);     // backrest rail
-  dma->drawFastVLine(x,     y - 6, 4, wood);
-  dma->drawFastVLine(x + 9, y - 6, 4, wood);
-}
-
-void drawPerson(int x, int y, uint32_t f, bool sitting, bool woman) {
-  uint16_t skin  = dma->color565(255, 205, 170);
-  uint16_t cloth = woman ? dma->color565(230, 90, 120) : dma->color565(70, 150, 190);
-  uint16_t legc  = woman ? dma->color565(230, 90, 120) : dma->color565(70, 110, 190);
-  uint16_t hair  = dma->color565(120, 80, 55);
-  dma->fillCircle(x + 2, y - 7, 2, skin);          // head
-  dma->drawFastHLine(x, y - 9, 5, hair);           // hair cap
-  if (woman) {                                     // longer hair, framing the face
-    dma->drawPixel(x,     y - 8, hair);
-    dma->drawPixel(x + 4, y - 8, hair);
-    dma->drawPixel(x,     y - 7, hair);
-    dma->drawPixel(x + 4, y - 7, hair);
-  }
-  if (sitting) {
-    dma->fillRect(x, y - 5, 5, 3, cloth);
-    dma->drawPixel(x,     y - 1, legc);            // legs folded forward on the bench
-    dma->drawPixel(x + 4, y - 1, legc);
-  } else {
-    dma->fillRect(x, y - 5, 5, 4, cloth);
-    bool stepA = (f / 5) % 2;
-    dma->drawFastVLine(x + (stepA ? 1 : 3), y - 1, 2, legc);
-    dma->drawFastVLine(x + (stepA ? 3 : 1), y - 1, 2, legc);
-  }
+    drawSpark(cakeX + 3, BOT - 18, C_ACCENT);   // sparkle over cake
 }
 
 void drawAmbient() {
   const int TOP = 19, BOT = 45;                 // scene strip rows
-
-  /* --- BIRTHDAY: cat plays with a cake instead of the sky scene --- */
-  if (isSpecialToday()) {
-    drawCakeAndCat(frameNo);
-    if (tmNow.tm_hour != prevHour) {
-      prevHour = tmNow.tm_hour;
-      hourBurstUntil = millis() + 2000;
-    }
-    if (millis() < hourBurstUntil)
-      for (int i = 0; i < 6; i++)
-        if (((frameNo / 3) + i) % 2)
-          drawHeart(4 + i * 10, TOP + (prng8(i * 7 + frameNo / 6) % 16), C_HEART);
-    return;
-  }
 
   int  mins  = tmNow.tm_hour * 60 + tmNow.tm_min;
   bool day   = (mins >= 360 && mins < 1110);    // 06:00 - 18:30
@@ -593,36 +547,11 @@ void drawAmbient() {
       if (((frameNo / 5) + i * 3) % 7 < 4)
         dma->drawPixel(sxs[i], sys[i], STAR);
 
-    if (coupleState == CPL_NONE && millis() > nextCoupleAt) {
-      coupleState = CPL_WALKIN;
-      benchXFixed = constrain(celX - 5, 3, PANEL_W - 15);
-      coupleX = benchXFixed - 20;
-    }
-
-    if (coupleState == CPL_NONE) {
-      drawCat(5, BOT - 4, CATC);                  // curled up, dreaming
-      int zp = (frameNo / 12) % 3;
-      drawZ(15, BOT - 7 - zp * 2, ZZZ);
-      if (zp == 2) drawZ(19, BOT - 13, ZZZ);
-    } else {
-      drawBench(benchXFixed, BOT);
-      bool sitting = (coupleState != CPL_WALKIN);
-      drawPerson(coupleX,     BOT, frameNo, sitting, false);  // him
-      drawPerson(coupleX + 6, BOT, frameNo, sitting, true);   // her
-      if (coupleState == CPL_WALKIN) {
-        coupleX++;
-        if (coupleX >= benchXFixed) { coupleState = CPL_SIT; coupleSitUntil = millis() + 11000; }
-      } else if (coupleState == CPL_SIT) {
-        if ((frameNo / 25) % 6 == 0) drawHeart(coupleX + 3, BOT - 15, C_HEART);  // a quiet moment
-        if (millis() > coupleSitUntil) coupleState = CPL_WALKOUT;
-      } else {                                    // CPL_WALKOUT
-        coupleX++;
-        if (coupleX > PANEL_W + 10) {
-          coupleState = CPL_NONE;
-          nextCoupleAt = millis() + (70000UL + esp_random() % 130000UL);
-        }
-      }
-    }
+    // a sleeping cat curled up under the stars, dreaming "Zzz"
+    drawCat(5, BOT - 4, CATC);
+    int zp = (frameNo / 12) % 3;
+    drawZ(15, BOT - 7 - zp * 2, ZZZ);
+    if (zp == 2) drawZ(19, BOT - 13, ZZZ);
   }
 
   /* --- daytime: a scene-event director picks what happens next ---
@@ -657,7 +586,7 @@ void drawAmbient() {
           int jump = sceneActing ? 0 : 6 - abs((sceneX + 5) - celX);
           if (jump < 0) jump = 0;
           drawWalkCat(sceneX, BOT, CATC, (frameNo / 6) % 2, jump);
-          if (!sceneActing && jump >= 5) drawHeart(sceneX + 4, BOT - 16, C_HEART);
+          if (!sceneActing && jump >= 5) drawSpark(sceneX + 4, BOT - 16, C_ACCENT);
         } else {
           SPRITES[activeSprite](sceneX, BOT, frameNo, sceneActing);
         }
@@ -688,7 +617,7 @@ void drawAmbient() {
           if (sceneX >= 24 && sceneX2 <= 34) { duoPhase = 1; sceneActUntil = millis() + 1800; }
         } else if (duoPhase == 1) {
           if ((frameNo / 3) % 2)
-            drawHeart((sceneX + sceneX2) / 2 + 3, BOT - 14, C_HEART);
+            drawSpark((sceneX + sceneX2) / 2 + 3, BOT - 14, C_ACCENT);
           if (millis() > sceneActUntil) duoPhase = 2;
         } else {
           sceneX--; sceneX2++;
@@ -740,7 +669,7 @@ void drawAmbient() {
 
   /* (weather effects live in the full-screen background layer) */
 
-  /* --- heart burst at the top of every hour (2 s) --- */
+  /* --- sparkle burst at the top of every hour (2 s) --- */
   if (tmNow.tm_hour != prevHour) {
     prevHour = tmNow.tm_hour;
     hourBurstUntil = millis() + 2000;
@@ -748,7 +677,7 @@ void drawAmbient() {
   if (millis() < hourBurstUntil) {
     for (int i = 0; i < 6; i++)
       if (((frameNo / 3) + i) % 2)
-        drawHeart(4 + i * 10, TOP + (prng8(i * 7 + frameNo / 6) % 16), C_HEART);
+        drawSpark(4 + i * 10, TOP + (prng8(i * 7 + frameNo / 6) % 16), C_ACCENT);
   }
 
   /* --- playful extras: drifting balloon + soft sparkles --- */
@@ -886,7 +815,7 @@ void renderClock() {
   int secs = tmNow.tm_sec;
   if (secs > 0)
     dma->drawFastHLine(2, 17, secs, dma->color565(110, 55, 85));
-  dma->drawPixel(2 + secs, 17, ((frameNo / 3) % 2) ? C_HEART : C_TIME);
+  dma->drawPixel(2 + secs, 17, ((frameNo / 3) % 2) ? C_ACCENT : C_TIME);
 
   /* --- living scene (rows 20-44) --- */
   drawAmbient();

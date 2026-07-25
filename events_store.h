@@ -2,7 +2,9 @@
 #pragma once
 
 /**********************  6. EVENTS (special days)  ********************/
-struct SpecialDay { String date; String name; };   // date = "MM-DD"
+/* A special day: a date, a TYPE that drives the celebration theme
+   ("custom" -> fireworks, "birthday" -> cake + confetti), and a message. */
+struct SpecialDay { String date; String type; String message; };   // date = "MM-DD"
 #define MAX_EVENTS 12
 SpecialDay events[MAX_EVENTS];
 int numEvents = 0;
@@ -13,7 +15,8 @@ void saveEvents() {
   for (int i = 0; i < numEvents; i++) {
     JsonObject o = arr.add<JsonObject>();
     o["d"] = events[i].date;
-    o["n"] = events[i].name;
+    o["t"] = events[i].type;
+    o["m"] = events[i].message;
   }
   File f = LittleFS.open("/events.json", "w");
   serializeJson(doc, f);
@@ -21,19 +24,20 @@ void saveEvents() {
 }
 void loadEvents() {
   numEvents = 0;
-  if (!LittleFS.exists("/events.json")) {
-    // Seed the one that matters ;)
-    events[0] = { "07-28", String(HER_NAME) + "'s Birthday" };
-    numEvents = 1;
-    saveEvents();
-    return;
-  }
+  // No default events — this is a general-purpose clock. Users add their own.
+  if (!LittleFS.exists("/events.json")) return;
   File f = LittleFS.open("/events.json", "r");
   JsonDocument doc;
   if (deserializeJson(doc, f) == DeserializationError::Ok) {
     for (JsonObject o : doc.as<JsonArray>()) {
       if (numEvents >= MAX_EVENTS) break;
-      events[numEvents++] = { o["d"].as<String>(), o["n"].as<String>() };
+      events[numEvents++] = {
+        o["d"].as<String>(),
+        o["t"].is<const char*>() ? o["t"].as<String>() : String("custom"),
+        // "m" is the message; fall back to the legacy "n" key if present
+        o["m"].is<const char*>() ? o["m"].as<String>()
+          : (o["n"].is<const char*>() ? o["n"].as<String>() : String(""))
+      };
     }
   }
   f.close();
@@ -50,6 +54,13 @@ bool isSpecialToday() {
     if (events[i].date == t) return true;
   return false;
 }
+// today's special day (type + message), or nullptr
+SpecialDay *todaysEvent() {
+  String t = todayMMDD();
+  for (int i = 0; i < numEvents; i++)
+    if (events[i].date == t) return &events[i];
+  return nullptr;
+}
 // days until next event (searches up to 366 days ahead); -1 if none
 int daysToNextEvent(String &nameOut) {
   if (numEvents == 0) return -1;
@@ -61,7 +72,7 @@ int daysToNextEvent(String &nameOut) {
     char b[6];
     snprintf(b, sizeof(b), "%02d-%02d", tmp.tm_mon + 1, tmp.tm_mday);
     for (int i = 0; i < numEvents; i++)
-      if (events[i].date == String(b)) { nameOut = events[i].name; return d; }
+      if (events[i].date == String(b)) { nameOut = events[i].message; return d; }
   }
   return -1;
 }
@@ -77,6 +88,11 @@ void saveConfig() {
   d["tgChat"]  = allowedChatId;
   d["lat"]     = cfgLat;
   d["lon"]     = cfgLon;
+  d["mqttEn"]   = mqttEnable;
+  d["mqttHost"] = mqttHost;
+  d["mqttPort"] = mqttPort;
+  d["mqttUser"] = mqttUser;
+  d["mqttPass"] = mqttPass;
   File f = LittleFS.open("/config.json", "w");
   serializeJson(d, f);
   f.close();
@@ -94,6 +110,11 @@ void loadConfig() {
     if (d["tgChat"].is<const char*>())  allowedChatId = d["tgChat"].as<String>();
     if (d["lat"].is<const char*>()) strlcpy(cfgLat, d["lat"], sizeof(cfgLat));
     if (d["lon"].is<const char*>()) strlcpy(cfgLon, d["lon"], sizeof(cfgLon));
+    if (d["mqttEn"].is<bool>())          mqttEnable = d["mqttEn"].as<bool>();
+    if (d["mqttHost"].is<const char*>()) mqttHost   = d["mqttHost"].as<String>();
+    if (d["mqttPort"].is<int>())         mqttPort   = d["mqttPort"].as<int>();
+    if (d["mqttUser"].is<const char*>()) mqttUser   = d["mqttUser"].as<String>();
+    if (d["mqttPass"].is<const char*>()) mqttPass   = d["mqttPass"].as<String>();
   }
   f.close();
 }

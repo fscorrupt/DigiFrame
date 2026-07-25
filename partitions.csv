@@ -1,0 +1,12 @@
+# DigiFrame custom 16 MB layout — 4 MB OTA app slots (room for future features).
+# Build with PartitionScheme=custom so this file is used.
+# NOTE: growing the app slots moves the ffat data partition, so flashing this
+# layout onto a device wipes LittleFS (GIFs/config) once — the default GIF pack
+# re-seeds and config falls back to defaults on the next boot.
+# Name,   Type, SubType, Offset,   Size,    Flags
+nvs,      data, nvs,     0x9000,   0x5000,
+otadata,  data, ota,     0xe000,   0x2000,
+app0,     app,  ota_0,   0x10000,  0x400000,
+app1,     app,  ota_1,   0x410000, 0x400000,
+ffat,     data, fat,     0x810000, 0x7E0000,
+coredump, data, coredump,0xFF0000, 0x10000,

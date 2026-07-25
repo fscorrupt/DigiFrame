@@ -13,12 +13,12 @@ h1{color:#ffb3de;font-size:22px}fieldset{border:1px solid #333;border-radius:10p
 legend{color:#aab}button,input{border-radius:8px;border:1px solid #444;background:#222;color:#eee;padding:8px;margin:3px 2px}
 button{cursor:pointer;background:#ff5078;border:0}li{margin:6px 0;list-style:none}ul{padding:0;margin:6px 0}
 .st{font-size:12px;color:#aab;margin-top:4px}</style>
-</head><body><h1>&#128151; DigiFrame</h1>
+</head><body><h1>&#9200; DigiFrame</h1>
 <fieldset><legend>Send a message</legend>
-<input id=m placeholder="I love you!" style="width:64%">
+<input id=m placeholder="Hello!" style="width:64%">
 <button onclick="api('msg','t='+encodeURIComponent(m.value))">Send</button></fieldset>
 <fieldset><legend>Brightness</legend>
-<input type=range min=5 max=255 value=100 id=b style="width:100%"
+<input type=range min=1 max=255 value=100 id=b style="width:100%"
  onchange="api('brightness','v='+b.value)"></fieldset>
 <fieldset><legend>GIFs (c_* = character pack)</legend><ul id=l></ul>
 <input type=file id=f accept=.gif><br><input id=n placeholder="name" style="width:100px">
@@ -27,8 +27,14 @@ button{cursor:pointer;background:#ff5078;border:0}li{margin:6px 0;list-style:non
 <fieldset><legend>Random cameo every</legend>
 <input id=iv type=number min=0 value=20 style="width:60px"> min (0 = off)
 <button onclick="api('interval','m='+iv.value)">Set</button></fieldset>
-<button onclick="api('party')">&#127881; Party test</button>
+<button onclick="api('celebrate')">&#127881; Celebration test</button>
 <button onclick="api('stop')">&#9209; Back to clock</button>
+<fieldset><legend>Special days</legend><ul id=ev></ul>
+<input id=ed placeholder="MM-DD" style="width:70px">
+<select id=et><option value=custom>custom</option><option value=birthday>birthday</option></select>
+<input id=em placeholder="message" style="width:98%">
+<button onclick=addEv()>Add / update</button>
+<div class=st>type drives the visual: custom = fireworks, birthday = cake</div></fieldset>
 <fieldset><legend>WiFi</legend>
 <input id=ws placeholder="network name (SSID)" style="width:94%"><br>
 <input id=wp type=password placeholder="password" style="width:60%">
@@ -45,6 +51,14 @@ button{cursor:pointer;background:#ff5078;border:0}li{margin:6px 0;list-style:non
 <input id=lo placeholder="longitude" style="width:28%">
 <button onclick="api('loc','la='+encodeURIComponent(la.value)+'&lo='+encodeURIComponent(lo.value))">Save</button>
 <div class=st>decimal degrees, e.g. 12.97 / 77.59 &mdash; weather refreshes right away</div></fieldset>
+<fieldset><legend>Home Assistant (MQTT)</legend>
+<label><input type=checkbox id=mqe> enable</label><br>
+<input id=mqh placeholder="broker host/IP" style="width:60%">
+<input id=mqp type=number placeholder="1883" style="width:70px"><br>
+<input id=mqu placeholder="username (optional)" style="width:45%">
+<input id=mqw type=password placeholder="password" style="width:45%">
+<button onclick=saveMqtt()>Save</button>
+<div class=st>the clock announces itself to Home Assistant via MQTT discovery</div></fieldset>
 <fieldset><legend>Firmware (OTA)</legend>
 <input type=file id=fw accept=.bin><br>
 <button onclick=ota()>&#9889; Update firmware</button>
@@ -54,7 +68,7 @@ button{cursor:pointer;background:#ff5078;border:0}li{margin:6px 0;list-style:non
 <button onclick="loadLogs()">&#8635; Refresh</button></fieldset>
 <script>
 async function api(ep,body){await fetch('/api/'+ep,{method:'POST',
- headers:{'Content-Type':'application/x-www-form-urlencoded'},body:body||''});load();loadLogs();loadCfg()}
+ headers:{'Content-Type':'application/x-www-form-urlencoded'},body:body||''});load();loadLogs();loadCfg();loadEv()}
 async function load(){try{let r=await fetch('/api/list'),j=await r.json();
  l.innerHTML=j.map(g=>`<li>${g} <button onclick="api('play','g=${g}')">&#9654;</button>
  <button onclick="api('del','g=${g}')">&#128465;</button></li>`).join('')}catch(e){}}
@@ -76,8 +90,16 @@ async function loadCfg(){try{let r=await fetch('/api/config'),j=await r.json();
  tc.placeholder=j.chat?('chat id: '+j.chat):'allowed chat id';
  tt.placeholder=j.token?('token: '+j.token):'bot token (from @BotFather)';
  la.placeholder='lat: '+j.lat;lo.placeholder='lon: '+j.lon;
- wst.textContent='WiFi: '+j.wifi;tst.textContent=''}catch(e){}}
-load();loadLogs();loadCfg();setInterval(loadLogs,2000)</script></body></html>)HTML";
+ wst.textContent='WiFi: '+j.wifi;tst.textContent='';
+ mqe.checked=!!j.mqttEn;mqh.placeholder=j.mqttHost||'broker host/IP';mqp.placeholder=j.mqttPort||1883;mqu.placeholder=j.mqttUser||'username (optional)'}catch(e){}}
+async function loadEv(){try{let r=await fetch('/api/events'),j=await r.json();
+ ev.innerHTML=j.length?j.map(e=>`<li>${e.date} [${e.type}] ${e.message} <button onclick="delEv('${e.date}')">&#128465;</button></li>`).join(''):'<li class=st>none yet</li>'}catch(e){}}
+async function addEv(){if(!ed.value)return;await fetch('/api/events',{method:'POST',
+ headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'d='+encodeURIComponent(ed.value)+'&t='+et.value+'&m='+encodeURIComponent(em.value)});em.value='';loadEv()}
+async function delEv(d){await fetch('/api/eventdel',{method:'POST',
+ headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'d='+encodeURIComponent(d)});loadEv()}
+async function saveMqtt(){await api('mqtt','en='+(mqe.checked?'1':'0')+'&h='+encodeURIComponent(mqh.value)+'&p='+(mqp.value||1883)+'&u='+encodeURIComponent(mqu.value)+'&w='+encodeURIComponent(mqw.value))}
+load();loadLogs();loadCfg();loadEv();setInterval(loadLogs,2000)</script></body></html>)HTML";
 
 void handleUpload() {
   HTTPUpload &up = web.upload();
@@ -127,6 +149,7 @@ void otaFail(const String &why) {
   otaBegun = false;
   if (tgTaskHandle)      vTaskResume(tgTaskHandle);
   if (weatherTaskHandle) vTaskResume(weatherTaskHandle);
+  if (mqttTaskHandle)    vTaskResume(mqttTaskHandle);
   mode = MODE_CLOCK;
   logLine("OTA FAILED: " + why);
 }
@@ -139,6 +162,7 @@ void handleOtaUpload() {
     logLine("OTA start: " + up.filename);
     if (tgTaskHandle)      vTaskSuspend(tgTaskHandle);      // nothing else may
     if (weatherTaskHandle) vTaskSuspend(weatherTaskHandle); // touch heap/flash now
+    if (mqttTaskHandle)    vTaskSuspend(mqttTaskHandle);
     closeGif();
     otaScreen("0 KB");
     if (!Update.begin(UPDATE_SIZE_UNKNOWN)) { otaFail(Update.errorString()); return; }
@@ -177,74 +201,59 @@ void handleOtaUpload() {
 void setupWeb() {
   web.on("/", HTTP_GET, []() { web.send_P(200, "text/html", DASH_HTML); });
   web.on("/api/logs", HTTP_GET, []() {
-    String out;
-    for (int i = 0; i < LOG_LINES; i++) {
-      String &l = logBuf[(logHead + i) % LOG_LINES];
-      if (l.length()) out += l + "\n";
-    }
-    if (!out.length()) out = "(no logs yet)";
-    web.send(200, "text/plain", out);
+    web.send(200, "text/plain", ctlLogsText());
   });
   web.on("/api/tgtest", HTTP_POST, []() {
-    if (WiFi.status() != WL_CONNECTED) { logLine("tgtest: no WiFi"); web.send(200, "text/plain", "ok"); return; }
-    logLine("tgtest: sending to " + allowedChatId + " ...");
-    bool ok = bot.sendMessage(allowedChatId, "DigiFrame test message", "");
-    logLine("tgtest: sendMessage returned " + String(ok ? "true (check your phone)" : "FALSE — token/chat_id bad"));
+    ctlTgTest();
     web.send(200, "text/plain", "ok");
   });
   web.on("/api/list", HTTP_GET, []() {
-    String out = "[";
-    File root = LittleFS.open("/");
-    File f = root.openNextFile();
-    bool first = true;
-    while (f) {
-      String nm = f.name();
-      if (nm.endsWith(".gif")) {
-        if (!first) out += ",";
-        out += "\"" + nm + "\"";
-        first = false;
-      }
-      f = root.openNextFile();
-    }
-    out += "]";
-    web.send(200, "application/json", out);
+    web.send(200, "application/json", ctlListGifsJson());
   });
   web.on("/api/msg", HTTP_POST, []() {
-    scrollText = web.arg("t");
-    scrollText.toUpperCase();
-    scrollX = PANEL_W;
-    closeGif();
-    mode = MODE_MSG;
-    msgEndsAt = millis() + MSG_MINUTES * 60000UL;
+    ctlSendMsg(web.arg("t"), false);
     web.send(200, "text/plain", "ok");
   });
   web.on("/api/brightness", HTTP_POST, []() {
-    userBrightness = constrain(web.arg("v").toInt(), 1, 255);
-    dma->setBrightness8(userBrightness);
-    saveConfig();
+    ctlSetBrightness(web.arg("v").toInt());
     web.send(200, "text/plain", "ok");
   });
   web.on("/api/play", HTTP_POST, []() {
-    if (openGif("/" + web.arg("g"), true)) mode = MODE_GIF;
+    ctlPlayGif(web.arg("g"));
     web.send(200, "text/plain", "ok");
   });
   web.on("/api/del", HTTP_POST, []() {
-    LittleFS.remove("/" + web.arg("g"));
+    ctlDelGif(web.arg("g"));
     web.send(200, "text/plain", "ok");
   });
   web.on("/api/interval", HTTP_POST, []() {
-    int mn = web.arg("m").toInt();
-    charEveryMs = (mn <= 0) ? 0 : (uint32_t)mn * 60000UL;
-    saveConfig();
+    ctlSetInterval(web.arg("m").toInt());
     web.send(200, "text/plain", "ok");
   });
-  web.on("/api/party", HTTP_POST, []() {
-    startParty(HER_NAME);
+  web.on("/api/celebrate", HTTP_POST, []() {
+    ctlCelebrate();
+    web.send(200, "text/plain", "ok");
+  });
+  /* ---- special days: list / add-update / delete ---- */
+  web.on("/api/events", HTTP_GET, []() {
+    web.send(200, "application/json", ctlListEventsJson());
+  });
+  web.on("/api/events", HTTP_POST, []() {
+    bool ok = ctlAddEvent(web.arg("d"), web.arg("t"), web.arg("m"));
+    web.send(ok ? 200 : 400, "text/plain", ok ? "ok" : "bad date or list full");
+  });
+  web.on("/api/eventdel", HTTP_POST, []() {
+    ctlDelEvent(web.arg("d"));
+    web.send(200, "text/plain", "ok");
+  });
+  /* ---- Home Assistant / MQTT config; mqttTask reconnects (core 0) ---- */
+  web.on("/api/mqtt", HTTP_POST, []() {
+    ctlSetMqtt(web.arg("en") == "1", web.arg("h"), web.arg("p").toInt(),
+               web.arg("u"), web.arg("w"));
     web.send(200, "text/plain", "ok");
   });
   web.on("/api/stop", HTTP_POST, []() {
-    closeGif();
-    mode = MODE_CLOCK;
+    ctlStop();
     web.send(200, "text/plain", "ok");
   });
   web.on("/api/upload", HTTP_POST,
@@ -262,56 +271,21 @@ void setupWeb() {
 
   /* ---- config: current values (token masked) to prefill the form ---- */
   web.on("/api/config", HTTP_GET, []() {
-    String tk = botToken;
-    if (tk.length() > 10) tk = tk.substring(0, 6) + "..." + tk.substring(tk.length() - 4);
-    JsonDocument d;
-    d["ssid"]  = cfgWifiSsid;
-    d["chat"]  = allowedChatId;
-    d["token"] = tk;
-    d["lat"]   = cfgLat;
-    d["lon"]   = cfgLon;
-    d["wifi"]  = (WiFi.status() == WL_CONNECTED)
-                   ? "connected, IP " + WiFi.localIP().toString()
-                   : String(portalActive ? "hotspot mode — enter your WiFi above" : "disconnected");
-    String out;
-    serializeJson(d, out);
-    web.send(200, "application/json", out);
+    web.send(200, "application/json", ctlStatusJson());
   });
   /* ---- save WiFi creds; wifi_manager picks up wifiRetryNow in loop() ---- */
   web.on("/api/wifi", HTTP_POST, []() {
-    String s = web.arg("s");
-    s.trim();
-    if (!s.length()) { web.send(400, "text/plain", "SSID required"); return; }
-    cfgWifiSsid = s;
-    cfgWifiPass = web.arg("p");
-    saveConfig();
-    wifiRetryNow = true;
-    logLine("WiFi creds updated -> '" + cfgWifiSsid + "'");
+    if (!ctlSetWifi(web.arg("s"), web.arg("p"))) { web.send(400, "text/plain", "SSID required"); return; }
     web.send(200, "text/plain", "ok — connecting to " + cfgWifiSsid);
   });
   /* ---- save weather location; weatherTask refetches right away ---- */
   web.on("/api/loc", HTTP_POST, []() {
-    String la = web.arg("la"); la.trim();
-    String lo = web.arg("lo"); lo.trim();
-    float flat = la.toFloat(), flon = lo.toFloat();
-    if (!la.length() || !lo.length() || flat < -90 || flat > 90 || flon < -180 || flon > 180) {
-      web.send(400, "text/plain", "bad lat/lon"); return;
-    }
-    strlcpy(cfgLat, la.c_str(), sizeof(cfgLat));
-    strlcpy(cfgLon, lo.c_str(), sizeof(cfgLon));
-    saveConfig();
-    weatherNow = true;
-    logLine("location updated -> " + la + "," + lo);
+    if (!ctlSetLoc(web.arg("la"), web.arg("lo"))) { web.send(400, "text/plain", "bad lat/lon"); return; }
     web.send(200, "text/plain", "ok");
   });
   /* ---- save Telegram config; tgTask applies the token (core 0) ---- */
   web.on("/api/tgconfig", HTTP_POST, []() {
-    String tk = web.arg("t"); tk.trim();
-    String ch = web.arg("c"); ch.trim();
-    if (tk.length()) { botToken = tk; tgTokenDirty = true; }
-    if (ch.length()) allowedChatId = ch;
-    saveConfig();
-    logLine("Telegram config updated (chat_id=" + allowedChatId + ")");
+    ctlSetTg(web.arg("t"), web.arg("c"));
     web.send(200, "text/plain", "ok");
   });
   /* ---- captive portal: any unknown URL (incl. OS connectivity probes

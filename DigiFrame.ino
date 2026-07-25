@@ -1,13 +1,13 @@
 /**********************************************************************
- *  DIGIFRAME  —  64x64 HUB75 Smart Gift Frame
+ *  DIGIFRAME  —  64x64 HUB75 Smart Clock
  *  ESP32-S3 (N16R8)  +  P2.5 64x64 HUB75 panel
  *
  *  FEATURES
- *   - NTP clock (IST) + Open-Meteo weather (no API key needed)
+ *   - NTP clock + Open-Meteo weather (no API key needed) + living ambient scene
  *   - Automatic night mode (dim glow after midnight)
- *   - Local web dashboard (http://digiframe.local): GIF upload, WiFi &
- *     Telegram config, brightness, messages, live logs
- *   - WiFi setup mode: if WiFi can't connect, the frame starts its own
+ *   - Cloud dashboard over Web Bluetooth + on-device dashboard
+ *     (http://digiframe.local): GIF upload, WiFi, brightness, messages, logs
+ *   - WiFi setup mode: if WiFi can't connect, the clock starts its own
  *     hotspot and shows a QR code on the panel — scan to join, then the
  *     config page opens (captive portal) to enter your WiFi. When the
  *     stored network comes back, it reconnects automatically.
@@ -17,12 +17,14 @@
  *       /play <name>       play a stored GIF on loop (or tap ▶ Play GIF)
  *       /list  /del <name>
  *       /brightness <1-255> (or tap 💡 Brightness)
- *       /event add MM-DD <name>   /event del MM-DD   /events
- *       /party  /test  /stop  /status  /help
+ *       /event add MM-DD <type> <message>   /event del MM-DD   /events
+ *       /celebrate  /test  /stop  /status  /help
  *     (GIF upload is done on the dashboard, not through Telegram)
- *   - Special-day engine: at 00:00 local time on a stored date the frame
- *     auto-starts the celebration: looping cake GIF + rotating messages
- *     all day long.
+ *   - Special days: give a date a TYPE (custom / birthday) and a message; at
+ *     00:00 the clock auto-runs the themed celebration (fireworks or cake +
+ *     rotating banner) all day long. Manual preview via /celebrate.
+ *   - Home Assistant integration over MQTT (optional): brightness, message,
+ *     celebrate/stop, plus temperature/mode sensors, via MQTT discovery.
  *
  *  FILES (Arduino IDE shows these as tabs; include order matters)
  *   config.h        user config + pin map (compile-time defaults)
@@ -32,9 +34,12 @@
  *   weather.h       Open-Meteo fetch + weather icons
  *   scene.h         clock face + ambient scene
  *   scroll.h        scrolling text renderer
- *   party.h         party mode + test mode
+ *   party.h         celebration (special-day) mode + test mode
+ *   control.h       shared control layer (HTTP + BLE call the same ctl*)
  *   telegram.h      Telegram bot commands + menus
  *   web_portal.h    web dashboard + captive portal pages
+ *   ble_config.h    BLE config service (cloud dashboard over Web Bluetooth)
+ *   mqtt_ha.h       Home Assistant integration over MQTT (optional)
  *   qr_display.h    on-panel QR codes for setup mode
  *   wifi_manager.h  WiFi connect, hotspot fallback, auto-reconnect
  *
@@ -43,20 +48,21 @@
  *   - "Adafruit GFX Library"
  *   - "AnimatedGIF" (Larry Bank)
  *   - "UniversalTelegramBot" (Brian Lough)  + "ArduinoJson"
+ *   - "NimBLE-Arduino" (h2zero)  + "PubSubClient" (Nick O'Leary)
  *   (QR codes use the espressif__qrcode component bundled with the core)
  *
  *  BOARD SETTINGS (Tools menu)
  *   Board: "ESP32S3 Dev Module"
  *   Flash Size: 16MB | PSRAM: "OPI PSRAM"
- *   Partition Scheme: "16M Flash (2MB APP / 12.5MB FATFS)" or any
- *     16MB scheme with a large data partition (used by LittleFS)
+ *   Partition Scheme: "Custom" (uses this sketch's partitions.csv —
+ *     4MB OTA app slots + ~7.9MB ffat data for LittleFS)
  *
  *  CLI BUILD (see FLASHING.md)
- *   arduino-cli compile --fqbn esp32:esp32:esp32s3:FlashSize=16M,PSRAM=opi,PartitionScheme=fatflash --output-dir build .
+ *   arduino-cli compile --fqbn esp32:esp32:esp32s3:FlashSize=16M,PSRAM=opi,PartitionScheme=custom --output-dir build .
  *
  *  FILES to place on LittleFS (upload via the dashboard, or once via
  *  the "ESP32 Sketch Data Upload" plugin):
- *   /cake.gif       64x64 birthday animation (celebration default)
+ *   /cake.gif       64x64 animation used by the "birthday" celebration type
  *   /idle.gif       optional cute idle animation
  *********************************************************************/
 
@@ -81,8 +87,11 @@
 #include "scene.h"
 #include "scroll.h"
 #include "party.h"
+#include "control.h"
 #include "telegram.h"
 #include "web_portal.h"
+#include "ble_config.h"
+#include "mqtt_ha.h"
 #include "qr_display.h"
 #include "wifi_manager.h"
 
@@ -148,6 +157,10 @@ void setup() {
   if (WiFi.status() == WL_CONNECTED && MDNS.begin("digiframe"))
     MDNS.addService("http", "tcp", 80);
 
+  /* ---- BLE config service: the cloud dashboard pairs over Web Bluetooth
+     (advertises regardless of WiFi state, so it works during setup too) ---- */
+  bleInit();
+
   /* ---- first weather ---- */
   if (WiFi.status() == WL_CONNECTED) fetchWeather();
   gif.begin(LITTLE_ENDIAN_PIXELS);
@@ -157,6 +170,7 @@ void setup() {
   tgReqMutex  = xSemaphoreCreateMutex();
   xTaskCreatePinnedToCore(tgTask,      "telegram", 8192, NULL, 1, &tgTaskHandle,      0);
   xTaskCreatePinnedToCore(weatherTask, "weather",  4096, NULL, 1, &weatherTaskHandle, 0);
+  xTaskCreatePinnedToCore(mqttTask,    "mqtt",     6144, NULL, 1, &mqttTaskHandle,    0);
 
   Serial.println("DigiFrame ready.");
 }
@@ -165,6 +179,7 @@ void setup() {
 void loop() {
   web.handleClient();              // local dashboard / captive portal
   wifiManagerTick();               // portal DNS, STA retries, auto-recover
+  bleTick();                       // refresh BLE status/gifs/log for the cloud site
 
   uint32_t ms = millis();
 
@@ -174,30 +189,34 @@ void loop() {
     time_t now = time(nullptr);
     localtime_r(&now, &tmNow);
 
-    // night mode (skipped during party; setup QR must stay scannable)
-    if (mode != MODE_PARTY && mode != MODE_SETUP) {
+    // night mode (skipped during a celebration; setup QR must stay scannable).
+    // Night is a *cap*, not a fixed level: it dims down to NIGHT_BRIGHTNESS,
+    // but a lower manual setting still wins — so the slider works at night.
+    if (mode != MODE_CELEBRATE && mode != MODE_SETUP) {
       bool night = (tmNow.tm_hour >= NIGHT_START_HR && tmNow.tm_hour < NIGHT_END_HR);
-      dma->setBrightness8(night ? NIGHT_BRIGHTNESS : userBrightness);
+      uint8_t target = userBrightness;
+      if (night && target > NIGHT_BRIGHTNESS) target = NIGHT_BRIGHTNESS;
+      dma->setBrightness8(target);
     }
 
-    // auto-start celebration at 00:00 on a special day (not while in setup)
+    // auto-start the celebration at 00:00 on a special day (not while in setup)
     String today = todayMMDD();
-    if (!portalActive && today != lastPartyDate) {
+    if (!portalActive && today != lastCelebDate) {
       for (int i = 0; i < numEvents; i++) {
         if (events[i].date == today) {
-          lastPartyDate = today;
-          startParty(events[i].name);
+          lastCelebDate = today;
+          startCelebration(events[i].type, events[i].message);
           break;
         }
       }
     }
-    // party day sanity: if an auto-started birthday party is no longer
+    // celebration day sanity: if an auto-started celebration is no longer
     // today's date (i.e. the day rolled over), return to clock.
-    // lastPartyDate is only set by the auto-trigger, so a manual /party
-    // test (lastPartyDate stays "") is never force-exited here.
-    if (mode == MODE_PARTY && lastPartyDate.length() && todayMMDD() != lastPartyDate) {
+    // lastCelebDate is only set by the auto-trigger, so a manual /celebrate
+    // (lastCelebDate stays "") is never force-exited here.
+    if (mode == MODE_CELEBRATE && lastCelebDate.length() && todayMMDD() != lastCelebDate) {
       closeGif(); mode = MODE_CLOCK;
-      logLine("party auto-ended (date rolled over)");
+      logLine("celebration auto-ended (date rolled over)");
     }
   }
 
@@ -205,38 +224,36 @@ void loop() {
 
   /* --- telegram every 3 s — handled by tgTask on core 0 --- */
 
-  /* --- consume pending Telegram command on this core (safe for LittleFS/DMA) --- */
+  /* --- consume a pending command posted from core 0 (Telegram or BLE) on
+         this core, where LittleFS / DMA / openGif are safe. All the real
+         work lives in control.h so HTTP + BLE + Telegram stay in sync. --- */
   if (tgReqReady && tgReqMutex && xSemaphoreTake(tgReqMutex, 0) == pdTRUE) {
     TgRequest req = tgReq;
     tgReqReady = false;
+    tgReq.buf  = nullptr;          // ownership moved to local `req`
     xSemaphoreGive(tgReqMutex);
     switch (req.cmd) {
-      case TGC_PLAY_GIF:
-        if (openGif(req.strArg, true)) mode = MODE_GIF;
-        break;
-      case TGC_MSG:
-        scrollText = req.strArg; scrollX = PANEL_W;
-        closeGif(); mode = MODE_MSG;
-        msgEndsAt = millis() + MSG_MINUTES * 60000UL;
-        break;
-      case TGC_PIN:
-        scrollText = req.strArg; scrollX = PANEL_W;
-        closeGif(); mode = MODE_MSG; msgEndsAt = 0;
-        break;
-      case TGC_STOP:
-        if (mode == MODE_TEST) wCode = testSavedWCode;
-        closeGif(); mode = MODE_CLOCK;
-        break;
-      case TGC_PARTY:
-        startParty(req.strArg);
-        break;
-      case TGC_TEST:
-        startTest(req.strArg);
-        break;
-      case TGC_BRIGHTNESS:
-        userBrightness = req.intArg;
-        dma->setBrightness8(userBrightness);
-        break;
+      case TGC_PLAY_GIF:   ctlPlayGif(req.strArg);                       break;
+      case TGC_MSG:        ctlSendMsg(req.strArg, false);                break;
+      case TGC_PIN:        ctlSendMsg(req.strArg, true);                 break;
+      case TGC_STOP:       ctlStop();                                    break;
+      case TGC_CELEBRATE:  (req.strArg.length() || req.strArg2.length())
+                             ? startCelebration(req.strArg, req.strArg2)
+                             : ctlCelebrate();                            break;
+      case TGC_TEST:       startTest(req.strArg);                        break;
+      case TGC_BRIGHTNESS: ctlSetBrightness(req.intArg);                 break;
+      case TGC_DEL_GIF:    ctlDelGif(req.strArg);                        break;
+      case TGC_INTERVAL:   ctlSetInterval(req.strArg.toInt());           break;
+      case TGC_SET_WIFI:   ctlSetWifi(req.strArg, req.strArg2);          break;
+      case TGC_SET_LOC:    ctlSetLoc(req.strArg, req.strArg2);           break;
+      case TGC_SET_TG:     ctlSetTg(req.strArg, req.strArg2);            break;
+      case TGC_TGTEST:     ctlTgTest();                                  break;
+      case TGC_GIF_COMMIT:
+        ctlCommitGif(req.strArg, req.intArg != 0, req.buf, req.bufLen);
+        if (req.buf) free(req.buf);                                      break;
+      case TGC_EVENT_ADD:  ctlAddEventJson(req.strArg);                  break;
+      case TGC_EVENT_DEL:  ctlDelEvent(req.strArg);                     break;
+      case TGC_SET_MQTT:   ctlSetMqttJson(req.strArg);                  break;
       default: break;
     }
   }
@@ -282,8 +299,8 @@ void loop() {
         }
       } else mode = MODE_CLOCK;
       break;
-    case MODE_PARTY:
-      runParty();
+    case MODE_CELEBRATE:
+      runCelebration();
       break;
     case MODE_TEST:
       runTest();
