@@ -1,0 +1,10 @@
+# DigiFrame website — Cloudflare Pages custom headers.
+# Mirrors the [[headers]] blocks in netlify.toml so both hosts behave the same.
+
+# The service worker must always be revalidated so app updates ship promptly.
+/sw.js
+  Cache-Control: no-cache
+
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin

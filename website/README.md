@@ -25,6 +25,7 @@ Bluetooth** pairs with the frame to provision WiFi and configure everything.
 | `app.js` | UI wiring: connect gate, controls, GIF upload, live logs |
 | `manifest.webmanifest`, `sw.js` | installable / offline PWA |
 | `netlify.toml` | Netlify deploy config |
+| `_headers` | Cloudflare Pages headers (mirrors `netlify.toml`) |
 
 The BLE contract lives in [`../BLE_PROTOCOL.md`](../BLE_PROTOCOL.md); keep
 `ble.js` and the firmware's `ble_config.h` in sync with it.
@@ -37,8 +38,16 @@ Everything here is static — just publish the `website/` folder.
   `website`. `netlify.toml` handles the rest.
 - **Vercel**: Import the repo → *Root directory* = `website`, framework
   "Other", no build command.
-- **Cloudflare Pages**: create a project → build command empty, *Build output
-  directory* = `website`.
+- **Cloudflare Pages** (what `CLOUD_SITE_URL` currently points at). Either:
+  - *Git-connected* — Workers & Pages → Create → Pages → connect this repo.
+    Framework preset **None**, build command **empty**, *Build output
+    directory* = `website`. Every push to `main` redeploys.
+  - *Direct upload* — from the repo root:
+    ```
+    npx wrangler pages deploy website --project-name digiframe
+    ```
+
+`_headers` is picked up automatically from the output directory.
 
 After deploying, set the firmware's `CLOUD_SITE_URL` in `config.h` to your
 site URL so the on-panel QR points at it, then reflash.
