@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-DigiFrame is an open-source Arduino/ESP32-S3 firmware that drives a 64x64 HUB75 LED matrix as a **smart clock**: NTP clock, Open-Meteo weather, a neutral living ambient scene, GIF playback from LittleFS, scrolling messages, typed **special days** (date + type + message → themed celebration; merges the old "party mode"), a Telegram bot, a cloud dashboard over Web Bluetooth + a local web dashboard, optional **Home Assistant integration over MQTT**, and a WiFi setup hotspot with an on-panel QR code. Being repositioned from a personal "gift frame" — keep it generic, no personal/gift references.
+DigiFrame is a source-available (noncommercial — PolyForm Noncommercial 1.0.0, see `LICENSE.md`) Arduino/ESP32-S3 firmware that drives a 64x64 HUB75 LED matrix as a **smart clock**: NTP clock, Open-Meteo weather, a neutral living ambient scene, GIF playback from LittleFS, scrolling messages, typed **special days** (date + type + message → themed celebration; merges the old "party mode"), a Telegram bot, a cloud dashboard over Web Bluetooth + a local web dashboard, optional **Home Assistant integration over MQTT**, and a WiFi setup hotspot with an on-panel QR code. Being repositioned from a personal "gift frame" — keep it generic, no personal/gift references.
 
 ## Repository layout
 

@@ -6,7 +6,11 @@ messages, and runs themed celebrations on your special days. Configure and
 control it from a **cloud dashboard over Bluetooth**, the **clock's own web
 dashboard** on your WiFi, a **Telegram bot**, or **Home Assistant** (MQTT).
 
-> Open source — contributions welcome.
+> Source-available for **DIY / noncommercial** use — contributions welcome. Commercial use needs a [separate license](#license).
+
+[![License: PolyForm Noncommercial](https://img.shields.io/badge/license-PolyForm%20Noncommercial-blue)](LICENSE.md)
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-%E2%98%95-FFDD00?logo=buymeacoffee&logoColor=black)](https://www.buymeacoffee.com/YOUR_BMC_USERNAME)
+<!-- ☕ replace YOUR_BMC_USERNAME (here and in .github/FUNDING.yml) with your Buy Me a Coffee username -->
 
 <p align="center">
   <img src="images/clock-live-photo.png" alt="DigiFrame — a 64×64 LED matrix smart clock in its glass frame" width="480">
@@ -185,6 +189,18 @@ deploy DigiFrame somewhere less private, enable passkey pairing in
   and Home Assistant fill that role.
 - Passkey BLE pairing shown on the panel, on by default.
 
+## Support the project
+
+DigiFrame is free for DIY / noncommercial use. If it helped you or you just want
+to say thanks, you can buy me a coffee ☕ — it funds more features:
+
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-support-FFDD00?logo=buymeacoffee&logoColor=black)](https://www.buymeacoffee.com/YOUR_BMC_USERNAME)
+
 ## License
 
-See `LICENSE` (add one before publishing — MIT is a good default for this).
+**Source-available, noncommercial** — free for personal, hobby/DIY, educational,
+and research use under the [PolyForm Noncommercial License 1.0.0](LICENSE.md).
+
+**Commercial use** (selling the device or firmware, or bundling it into a paid
+product or service) **requires a separate license** — contact
+[@manoharc07](https://github.com/manoharc07) to arrange terms.
