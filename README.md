@@ -12,7 +12,18 @@ dashboard** on your WiFi, a **Telegram bot**, or **Home Assistant** (MQTT).
 [![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-EA4AAA?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/manoharc07)
 
 <p align="center">
-  <img src="images/clock-live-photo.png" alt="DigiFrame — a 64×64 LED matrix smart clock in its glass frame" width="480">
+  <video src="https://github.com/manoharc07/DigiFrame/raw/main/images/clock-view.mp4" width="480" controls muted loop playsinline></video>
+  <br><em>The clock face — time, weather and the living ambient scene.</em>
+</p>
+
+<p align="center">
+  <video src="https://github.com/manoharc07/DigiFrame/raw/main/images/clock-live-video.mp4" width="480" controls muted loop playsinline></video>
+  <br><em>Running live in the glass frame.</em>
+</p>
+
+<p align="center">
+  <img src="images/clock-with-frame.jpeg" alt="DigiFrame in its 3D-printed glass frame" width="400">
+  <img src="images/clock-poster-photo.png" alt="DigiFrame — a 64×64 LED matrix smart clock" width="400">
 </p>
 
 ## Features
