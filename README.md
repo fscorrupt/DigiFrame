@@ -12,12 +12,12 @@ dashboard** on your WiFi, a **Telegram bot**, or **Home Assistant** (MQTT).
 [![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-EA4AAA?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/manoharc07)
 
 <p align="center">
-  <video src="https://github.com/manoharc07/DigiFrame/raw/main/images/clock-view.mp4" width="480" controls muted loop playsinline></video>
+  <img src="images/clock-view.gif" alt="DigiFrame clock face — time, weather and the ambient scene" width="420">
   <br><em>The clock face — time, weather and the living ambient scene.</em>
 </p>
 
 <p align="center">
-  <video src="https://github.com/manoharc07/DigiFrame/raw/main/images/clock-live-video.mp4" width="480" controls muted loop playsinline></video>
+  <img src="images/clock-live-video.gif" alt="DigiFrame running live in its glass frame" width="280">
   <br><em>Running live in the glass frame.</em>
 </p>
 
