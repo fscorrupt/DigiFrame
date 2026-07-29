@@ -5,8 +5,8 @@
  *  FEATURES
  *   - NTP clock + Open-Meteo weather (no API key needed) + living ambient scene
  *   - Automatic night mode (dim glow after midnight)
- *   - Cloud dashboard over Web Bluetooth + on-device dashboard
- *     (http://digiframe.local): GIF upload, WiFi, brightness, messages, logs
+ *   - On-device dashboard (http://digiframe.local): GIF upload, WiFi,
+ *     brightness, messages, logs
  *   - WiFi setup mode: if WiFi can't connect, the clock starts its own
  *     hotspot and shows a QR code on the panel — scan to join, then the
  *     config page opens (captive portal) to enter your WiFi. When the
@@ -35,10 +35,9 @@
  *   scene.h         clock face + ambient scene
  *   scroll.h        scrolling text renderer
  *   party.h         celebration (special-day) mode + test mode
- *   control.h       shared control layer (HTTP + BLE call the same ctl*)
+ *   control.h       shared control layer (HTTP + MQTT call the same ctl*)
  *   telegram.h      Telegram bot commands + menus
  *   web_portal.h    web dashboard + captive portal pages
- *   ble_config.h    BLE config service (cloud dashboard over Web Bluetooth)
  *   mqtt_ha.h       Home Assistant integration over MQTT (optional)
  *   qr_display.h    on-panel QR codes for setup mode
  *   wifi_manager.h  WiFi connect, hotspot fallback, auto-reconnect
@@ -48,7 +47,7 @@
  *   - "Adafruit GFX Library"
  *   - "AnimatedGIF" (Larry Bank)
  *   - "UniversalTelegramBot" (Brian Lough)  + "ArduinoJson"
- *   - "NimBLE-Arduino" (h2zero)  + "PubSubClient" (Nick O'Leary)
+ *   - "PubSubClient" (Nick O'Leary)
  *   (QR codes use the espressif__qrcode component bundled with the core)
  *
  *  BOARD SETTINGS (Tools menu)
@@ -58,7 +57,7 @@
  *     4MB OTA app slots + ~7.9MB ffat data for LittleFS)
  *
  *  CLI BUILD (see FLASHING.md)
- *   arduino-cli compile --fqbn esp32:esp32:esp32s3:FlashSize=16M,PSRAM=opi,PartitionScheme=custom --output-dir build firmware/DigiFrame
+ *   arduino-cli compile --fqbn esp32:esp32:esp32s3:FlashSize=16M,PSRAM=opi,PartitionScheme=custom,CDCOnBoot=cdc --output-dir build firmware/DigiFrame
  *
  *  FILES to place on LittleFS (upload via the dashboard, or once via
  *  the "ESP32 Sketch Data Upload" plugin):
@@ -90,10 +89,25 @@
 #include "control.h"
 #include "telegram.h"
 #include "web_portal.h"
-#include "ble_config.h"
 #include "mqtt_ha.h"
 #include "qr_display.h"
 #include "wifi_manager.h"
+
+/* Boot-time memory probe. Internal (non-PSRAM) DRAM is the binding resource
+   on this board — WiFi, the panel's DMA framebuffer and every TLS session
+   compete for it, and PSRAM cannot substitute (see config.h). Allocators
+   that need a *contiguous* block care about `largest`, not the total, so
+   print both around anything big in setup(). */
+static void heapReport(const char *where) {
+  Serial.printf("[heap] %-22s internal free %6u  largest %6u | psram free %7u\n",
+                where,
+                (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
+                (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+  Serial.flush();
+  delay(20);        // USB-CDC: let the line drain in case the next call abort()s
+
+}
 
 /**********************  13. SETUP  ***********************************/
 void setup() {
@@ -108,8 +122,10 @@ void setup() {
   cfg.latch_blanking = 2;          // helps ghosting on some P2.5 panels
   cfg.clkphase = false;            // flip if you see column shift
   cfg.double_buff = true;          // back-buffer drawing; flip atomically → zero tearing/flicker
+  cfg.setPixelColorDepthBits(PANEL_COLOR_DEPTH);   // internal-DRAM budget — see config.h
   dma = new MatrixPanel_I2S_DMA(cfg);
   dma->begin();
+  heapReport("after dma->begin()");
   dma->setBrightness8(DAY_BRIGHTNESS);
   dma->fillScreen(0);
   dma->setTextSize(1);
@@ -157,10 +173,6 @@ void setup() {
   if (WiFi.status() == WL_CONNECTED && MDNS.begin("digiframe"))
     MDNS.addService("http", "tcp", 80);
 
-  /* ---- BLE config service: the cloud dashboard pairs over Web Bluetooth
-     (advertises regardless of WiFi state, so it works during setup too) ---- */
-  bleInit();
-
   /* ---- first weather ---- */
   if (WiFi.status() == WL_CONNECTED) fetchWeather();
   gif.begin(LITTLE_ENDIAN_PIXELS);
@@ -172,6 +184,7 @@ void setup() {
   xTaskCreatePinnedToCore(weatherTask, "weather",  4096, NULL, 1, &weatherTaskHandle, 0);
   xTaskCreatePinnedToCore(mqttTask,    "mqtt",     6144, NULL, 1, &mqttTaskHandle,    0);
 
+  heapReport("end of setup()");
   Serial.println("DigiFrame ready.");
 }
 
@@ -179,7 +192,6 @@ void setup() {
 void loop() {
   web.handleClient();              // local dashboard / captive portal
   wifiManagerTick();               // portal DNS, STA retries, auto-recover
-  bleTick();                       // refresh BLE status/gifs/log for the cloud site
 
   uint32_t ms = millis();
 

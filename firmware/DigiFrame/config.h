@@ -30,12 +30,13 @@
 #define AP_PASS "digiframe123" // >= 8 chars (WPA2)
 #define WIFI_FAIL_PORTAL_MIN 5 // runtime outage (min) before portal reopens
 
-/* ---- cloud dashboard: the on-panel setup QR points here. Scanning it
-   opens the site, which pairs with the frame over Web Bluetooth (Android /
-   desktop Chrome/Edge) to provision WiFi and configure everything. iPhone
-   users, or anyone without Web Bluetooth, fall back to the on-device
-   dashboard (join the "DigiFrame" hotspot -> http://192.168.4.1). Keep this
-   short — it has to fit in the panel QR. ---- */
+/* ---- cloud dashboard. NOT currently used by the firmware: the setup QR
+   now encodes a WIFI: hotspot-join payload, because an https:// page cannot
+   call this device's http:// LAN API (browser mixed-content rules). Reaching
+   the frame from a cloud page requires an outbound relay connection from the
+   device — reserved here for that work. Setup and LAN control both go
+   through the on-device dashboard (hotspot -> http://192.168.4.1, or
+   http://digiframe.local once on your network). ---- */
 #define CLOUD_SITE_URL "https://digiframe.pages.dev"
 
 /* ---- Home Assistant integration over MQTT (all overridable at runtime from
@@ -69,3 +70,14 @@
 
 #define PANEL_W 64
 #define PANEL_H 64
+
+/* HUB75 colour depth (bits/channel). The DMA framebuffer is
+   (PANEL_H/2) * PANEL_W * 2 bytes * depth, DOUBLED because double_buff is on
+   — and it must live in internal DRAM, which is the scarcest resource on this
+   board (WiFi+AP wants ~70 KB of the same pool, and every concurrent TLS
+   session ~32 KB). At the library default of 8 that framebuffer alone is
+   64 KB, which once left setup() finishing with under 1 KB free.
+     8 -> 64 KB   6 -> 48 KB   5 -> 40 KB   4 -> 32 KB
+   5 keeps gradients in the ambient scene acceptable; drop to 4 only if you
+   need the extra 8 KB more than you need smooth colour. */
+#define PANEL_COLOR_DEPTH 5

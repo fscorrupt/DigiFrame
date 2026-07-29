@@ -5,7 +5,7 @@ Prebuilt binaries live in `build/` after a compile.
 ## Build (command line)
 
 ```
-arduino-cli compile --fqbn esp32:esp32:esp32s3:FlashSize=16M,PSRAM=opi,PartitionScheme=custom --output-dir build firmware/DigiFrame
+arduino-cli compile --fqbn esp32:esp32:esp32s3:FlashSize=16M,PSRAM=opi,PartitionScheme=custom,CDCOnBoot=cdc --output-dir build firmware/DigiFrame
 ```
 
 `PartitionScheme=custom` uses the sketch's `partitions.csv` (4 MB OTA app
@@ -67,29 +67,24 @@ erases the LittleFS partition too:
 esptool --chip esp32s3 --port COM5 write-flash 0x0 build/DigiFrame.ino.merged.bin
 ```
 
-> Note: install `NimBLE-Arduino` (Bluetooth config service) and `PubSubClient`
-> (Home Assistant MQTT) from Library Manager before building. The app is ~1.75 MB
-> and now targets a **4 MB** app partition (`PartitionScheme=custom`), so there's
-> plenty of headroom.
+> Note: install `PubSubClient` (Home Assistant MQTT) from Library Manager
+> before building. The app is ~1.5 MB and targets a **4 MB** app partition
+> (`PartitionScheme=custom`), so there's plenty of headroom.
+>
+> `CDCOnBoot=cdc` is required if you want to read `Serial` output over the
+> board's native USB port — without it Arduino's `Serial` goes to the UART0
+> pins and you'll see only ROM and panic messages.
 
 ## First boot / new WiFi
 
 If the frame can't reach the stored WiFi it starts a hotspot and shows a
-QR code on the panel. There are two ways to set it up:
+QR code on the panel.
 
-**Bluetooth (Android / Chrome / Edge) — recommended**
-
-1. Scan the panel QR → it opens the cloud dashboard (set by `CLOUD_SITE_URL`
-   in `config.h`; you host `website/` yourself — see `website/README.md`).
-2. Tap **Connect over Bluetooth** and pick your frame (`DigiFrame-XXXX`).
-3. Enter your WiFi in the **WiFi** section → Save & connect. The frame
-   reconnects on its own; you can keep configuring everything over Bluetooth.
-
-**On-device dashboard (iPhone / no Bluetooth / recovery)**
-
-1. On your phone's WiFi settings, join `DigiFrame` (pass `digiframe123`).
-2. The captive page pops up (or open http://192.168.4.1 — once joined the
-   panel QR switches to this URL too).
+1. Point your phone's camera at the panel QR — it encodes a `WIFI:` payload,
+   so it offers to join the `DigiFrame` hotspot directly (pass `digiframe123`
+   if you'd rather join manually from WiFi settings).
+2. The captive page pops up (or open http://192.168.4.1 — once a phone has
+   joined, the panel QR switches to this URL too).
 3. Enter your WiFi → Save & connect. When online, the dashboard is at
    http://digiframe.local.
 

@@ -4,19 +4,31 @@
 
 /**********************  12c. SETUP QR DISPLAY  ***********************/
 /* While the setup hotspot is up (MODE_SETUP) the panel shows a QR code.
- * Before a phone joins, it encodes the CLOUD DASHBOARD URL (with this
- * frame's BLE name in the fragment) — scanning opens the site, which pairs
- * over Web Bluetooth to provision WiFi (Android/desktop Chrome). iPhone or
- * no-Bluetooth users instead join the "DigiFrame" hotspot; once a station
- * connects the QR switches to http://192.168.4.1 so the on-device
- * dashboard opens directly if the captive popup didn't appear.
+ * Before a phone joins it encodes a WIFI: payload, so scanning it joins the
+ * "DigiFrame" hotspot directly (Android and iOS camera apps both handle
+ * this natively). Once a station connects, the QR switches to
+ * http://192.168.4.1 so the on-device dashboard opens even if the captive
+ * popup didn't appear. Provisioning is HTTP-only now — a cloud page can't
+ * reach a LAN device over http:// from an https:// origin (mixed content),
+ * which is why the hotspot portal is the bootstrap path.
  *
- * The URL is longer than the old WIFI: payload, so we allow up to version 6
- * (41x41 modules). qrToPanel scales by PANEL_W/size (2x at v<=3, 1x above),
- * always centered. QR wants dark-on-light, so the background is lit and
- * modules are unlit LEDs. Static image — redraw only when the text changes. */
+ * qrToPanel scales by PANEL_W/size (2x for versions <= 3, 1x above), always
+ * centered. QR wants dark-on-light, so the background is lit and modules are
+ * unlit LEDs. Static image — redraw only when the text changes. */
 
 String qrLastText = "";
+
+/* WIFI: payload reserves \ ; , : and " — escape them or a password
+   containing any of them silently produces an unscannable/wrong network. */
+static String qrEscape(const String &s) {
+  String out;
+  for (size_t i = 0; i < s.length(); i++) {
+    char c = s[i];
+    if (c == '\\' || c == ';' || c == ',' || c == ':' || c == '"') out += '\\';
+    out += c;
+  }
+  return out;
+}
 
 /* esp_qrcode_generate() hands the finished code to this callback. */
 static void qrToPanel(esp_qrcode_handle_t qrcode) {
@@ -37,7 +49,7 @@ static void qrToPanel(esp_qrcode_handle_t qrcode) {
 void renderSetupQR() {
   String txt = (WiFi.softAPgetStationNum() > 0)
                  ? String("http://192.168.4.1")
-                 : String(CLOUD_SITE_URL) + "/#d=" + bleDeviceName();
+                 : "WIFI:T:WPA;S:" + qrEscape(AP_SSID) + ";P:" + qrEscape(AP_PASS) + ";;";
   if (txt == qrLastText) return;          // static image — redraw only on change
   qrLastText = txt;
 

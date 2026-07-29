@@ -6,8 +6,9 @@
  * front-ends stay in lock-step and can't drift:
  *   - the local HTTP dashboard (web_portal.h) runs on core 1 and calls
  *     these ctl* functions directly;
- *   - the BLE config service (ble_config.h) runs on core 0 and must
- *     marshal to core 1 via postTgCmd() — loop() then calls the ctl*.
+ *   - the Telegram bot (telegram.h) and the Home Assistant MQTT client
+ *     (mqtt_ha.h) run on core 0 and must marshal to core 1 via
+ *     postTgCmd() — loop() then calls the ctl*.
  * ALL of these run on core 1: they touch LittleFS / the DMA panel /
  * openGif / saveConfig, none of which are safe from a core-0 task. */
 

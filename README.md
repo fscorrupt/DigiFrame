@@ -3,8 +3,8 @@
 A **64×64 HUB75 LED matrix smart clock** running on an ESP32-S3. It shows an
 NTP clock, live weather, a living ambient scene, looping GIFs, scrolling
 messages, and runs themed celebrations on your special days. Configure and
-control it from a **cloud dashboard over Bluetooth**, the **clock's own web
-dashboard** on your WiFi, a **Telegram bot**, or **Home Assistant** (MQTT).
+control it from the **clock's own web dashboard** on your WiFi, a **Telegram
+bot**, or **Home Assistant** (MQTT).
 
 > Source-available for **DIY / noncommercial** use — contributions welcome. Commercial use needs a [separate license](#license).
 
@@ -43,8 +43,7 @@ dashboard** on your WiFi, a **Telegram bot**, or **Home Assistant** (MQTT).
   more from anywhere, with tap-able button menus.
 - **Home Assistant** — optional MQTT integration with auto-discovery: brightness,
   a message box, celebrate/stop buttons, and temperature/mode sensors.
-- **Three ways to configure**: cloud site over Bluetooth, the on-device web
-  dashboard, or Telegram.
+- **Two ways to configure**: the on-device web dashboard, or Telegram.
 - **OTA firmware updates** from the on-device dashboard.
 
 ## Hardware
@@ -124,38 +123,28 @@ sits behind it, and the ESP32 + wiring tuck inside before the lid closes.
 Full instructions in [`FLASHING.md`](FLASHING.md). In short:
 
 ```
-arduino-cli compile --fqbn esp32:esp32:esp32s3:FlashSize=16M,PSRAM=opi,PartitionScheme=custom --output-dir build firmware/DigiFrame
+arduino-cli compile --fqbn esp32:esp32:esp32s3:FlashSize=16M,PSRAM=opi,PartitionScheme=custom,CDCOnBoot=cdc --output-dir build firmware/DigiFrame
 ```
 
 Board: **ESP32S3 Dev Module**, Flash 16 MB, PSRAM **OPI PSRAM**, Partition
 scheme **Custom** (uses the sketch's `partitions.csv` — 4 MB OTA app slots +
 ~7.9 MB data). Libraries (Library Manager): `ESP32 HUB75 LED MATRIX PANEL DMA
 Display`, `Adafruit GFX Library`, `AnimatedGIF`, `UniversalTelegramBot`,
-`ArduinoJson`, `NimBLE-Arduino`, `PubSubClient`.
+`ArduinoJson`, `PubSubClient`.
 
 ## Setup & control
 
 On first boot, if the frame can't reach a stored WiFi it opens a hotspot and
 shows a QR code.
 
-### 1. Cloud dashboard over Bluetooth (Android / Chrome / Edge)
+### 1. On-device dashboard (any browser, incl. iPhone)
 
-The panel QR opens a **cloud-hosted static site** (in [`website/`](website/))
-that pairs with the frame over **Web Bluetooth** — no backend, no account. Use
-it to set WiFi, brightness, messages, GIFs, weather location, Telegram config,
-and watch live logs. Host it yourself (Netlify/Vercel/Cloudflare Pages — see
-[`website/README.md`](website/README.md)) and point `CLOUD_SITE_URL` in
-`config.h` at your URL.
+Scanning the panel QR joins the `DigiFrame` hotspot directly; the captive page
+then opens at `http://192.168.4.1`. Enter your WiFi there, and once the frame
+is online the same dashboard lives at `http://digiframe.local` — GIF upload,
+brightness, messages, weather location, Telegram config and live logs.
 
-> iPhone/iPad Safari doesn't support Web Bluetooth — those users use path 2.
-
-### 2. On-device dashboard on your WiFi (any browser, incl. iPhone)
-
-Join the `DigiFrame` hotspot (or, once online, open `http://digiframe.local`)
-and use the frame's built-in dashboard — the same controls, served locally.
-This is also the recovery path if Bluetooth is unavailable.
-
-### 3. Telegram bot (anywhere)
+### 2. Telegram bot (anywhere)
 
 Create a bot with @BotFather, set the token + your chat id (via any dashboard),
 and control the clock remotely. Send `/menu` for the button menu.
@@ -171,13 +160,12 @@ sensors. Off by default.
 
 Single Arduino sketch, dual-core FreeRTOS. **Core 1** owns the LED panel,
 GIF decoder, web server and mode state; **core 0** runs Telegram polling,
-weather fetches, the NimBLE host, and the MQTT client. A shared
+weather fetches, and the MQTT client. A shared
 [`control.h`](firmware/DigiFrame/control.h) layer holds one implementation per action, so every
-front-end (HTTP dashboard, Bluetooth, Telegram, Home Assistant) behaves
+front-end (HTTP dashboard, Telegram, Home Assistant) behaves
 identically; core-0 tasks marshal work to core 1 through a command queue (they
 never touch LittleFS or the panel directly).
 
-The BLE contract is documented in [`BLE_PROTOCOL.md`](BLE_PROTOCOL.md).
 Architecture details and invariants are in [`CLAUDE.md`](CLAUDE.md).
 
 ## Configuration & security
@@ -187,19 +175,18 @@ Architecture details and invariants are in [`CLAUDE.md`](CLAUDE.md).
 persisted to `/config.json` on the device. Treat any token/password you flash
 in as sensitive and don't commit real ones.
 
-Both config surfaces are **unauthenticated**: the web dashboard is LAN-only,
-and the BLE service uses "just works" pairing (short range, same room). If you
-deploy DigiFrame somewhere less private, enable passkey pairing in
-`ble_config.h`. See the security note in `BLE_PROTOCOL.md`.
+The web dashboard is **unauthenticated** and LAN-only — anyone on your network
+can reach it. Keep that in mind before exposing the frame on a shared or public
+network, and never port-forward it.
 
 ## Roadmap
 
 - **Smart widgets** — now-playing, stock/finance tickers, and other
   at-a-glance widgets on the clock face.
-- **Cloud relay backend** — optional server so the website can reach the clock
-  from anywhere (and cover iPhone), instead of Bluetooth-only. Today Telegram
-  and Home Assistant fill that role.
-- Passkey BLE pairing shown on the panel, on by default.
+- **Cloud relay backend** — an outbound connection from the frame to a broker,
+  so a cloud page can reach the clock from anywhere. A browser can't call the
+  frame's LAN API from an `https://` page (mixed content), so a relay is the
+  only route. Today Telegram and Home Assistant fill that role.
 
 ## Support the project
 
