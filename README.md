@@ -3,8 +3,15 @@
 A **64×64 HUB75 LED matrix smart clock** running on an ESP32-S3. It shows an
 NTP clock, live weather, a living ambient scene, looping GIFs, scrolling
 messages, and runs themed celebrations on your special days. Configure and
-control it from the **clock's own web dashboard** on your WiFi, a **Telegram
-bot**, or **Home Assistant** (MQTT).
+control it from the **clock's own web dashboard** on your WiFi, or **Home Assistant** (MQTT).
+
+> **Note on this fork**: This version of DigiFrame has been extensively modified from the original upstream repository. Key differences include:
+> - **Telegram Removed**: The Telegram bot integration has been completely removed to slim down the firmware and reduce dependencies.
+> - **Night Mode Added**: A new Night Mode has been added which hides animations and dims the screen. It can be toggled via Home Assistant (MQTT).
+> - **Color Fixes**: Fixed GIF colors by swapping `AnimatedGIF` to Big Endian mode, and adapted the default pin configuration for an RBG matrix panel.
+> - **Calendar Integration**: Added robust support for integrating Home Assistant calendar events via MQTT.
+> - **Localization & Time Formats**: Added German language support and a 12/24-hour time format toggle.
+> - **Performance Enhancements**: Various performance optimizations across the UI and system.
 
 > Source-available for **DIY / noncommercial** use — contributions welcome. Commercial use needs a [separate license](#license).
 
@@ -38,12 +45,10 @@ bot**, or **Home Assistant** (MQTT).
 - **Messages** — scroll a note for a while, or pin one until you stop it.
 - **Special days** — give a date a **type** (`custom` → fireworks, `birthday` →
   cake + confetti) and a message; at midnight the clock runs that themed
-  celebration all day. Add them from any dashboard or Telegram.
-- **Telegram bot** — control playback, messages, brightness, special days and
-  more from anywhere, with tap-able button menus.
+  celebration all day. Add them from the dashboard.
 - **Home Assistant** — optional MQTT integration with auto-discovery: brightness,
   a message box, celebrate/stop buttons, and temperature/mode sensors.
-- **Two ways to configure**: the on-device web dashboard, or Telegram.
+- **Configurable**: via the on-device web dashboard.
 - **OTA firmware updates** from the on-device dashboard.
 
 ## Hardware
@@ -122,15 +127,20 @@ sits behind it, and the ESP32 + wiring tuck inside before the lid closes.
 
 Full instructions in [`FLASHING.md`](FLASHING.md). In short:
 
+**1. Install Dependencies:**  
+You can automatically install all the required libraries by running the included setup script from PowerShell:
+```powershell
+.\install_deps.ps1
 ```
-arduino-cli compile --fqbn esp32:esp32:esp32s3:FlashSize=16M,PSRAM=opi,PartitionScheme=custom,CDCOnBoot=cdc --output-dir build firmware/DigiFrame
+
+**2. Compile & Upload:**
+```powershell
+arduino-cli compile --fqbn esp32:esp32:esp32s3:FlashSize=16M,PSRAM=opi,PartitionScheme=custom,CDCOnBoot=cdc --build-path .\build_cache --output-dir build firmware/DigiFrame
 ```
 
 Board: **ESP32S3 Dev Module**, Flash 16 MB, PSRAM **OPI PSRAM**, Partition
 scheme **Custom** (uses the sketch's `partitions.csv` — 4 MB OTA app slots +
-~7.9 MB data). Libraries (Library Manager): `ESP32 HUB75 LED MATRIX PANEL DMA
-Display`, `Adafruit GFX Library`, `AnimatedGIF`, `UniversalTelegramBot`,
-`ArduinoJson`, `PubSubClient`.
+~7.9 MB data).
 
 ## Setup & control
 
@@ -142,27 +152,24 @@ shows a QR code.
 Scanning the panel QR joins the `DigiFrame` hotspot directly; the captive page
 then opens at `http://192.168.4.1`. Enter your WiFi there, and once the frame
 is online the same dashboard lives at `http://digiframe.local` — GIF upload,
-brightness, messages, weather location, Telegram config and live logs.
-
-### 2. Telegram bot (anywhere)
-
-Create a bot with @BotFather, set the token + your chat id (via any dashboard),
-and control the clock remotely. Send `/menu` for the button menu.
+brightness, messages, weather location, and live logs.
 
 ### 4. Home Assistant (MQTT)
 
 Enable MQTT and set your broker (e.g. the Mosquitto add-on) from any dashboard.
 The clock announces itself to Home Assistant via MQTT discovery as a device with
-brightness, a message text box, celebrate/stop buttons, and temperature/mode
-sensors. Off by default.
+brightness, a message text box, night mode controls, celebrate/stop buttons, and temperature/mode
+sensors. 
+
+**See [HomeAssistant.md](HomeAssistant.md)** for copy-paste YAML examples on how to sync your Google Calendar and control the frame's Night Mode via automations!
 
 ## How it works
 
 Single Arduino sketch, dual-core FreeRTOS. **Core 1** owns the LED panel,
-GIF decoder, web server and mode state; **core 0** runs Telegram polling,
-weather fetches, and the MQTT client. A shared
+GIF decoder, web server and mode state; **core 0** runs
+weather fetches and the MQTT client. A shared
 [`control.h`](firmware/DigiFrame/control.h) layer holds one implementation per action, so every
-front-end (HTTP dashboard, Telegram, Home Assistant) behaves
+front-end (HTTP dashboard, Home Assistant) behaves
 identically; core-0 tasks marshal work to core 1 through a command queue (they
 never touch LittleFS or the panel directly).
 
@@ -186,7 +193,7 @@ network, and never port-forward it.
 - **Cloud relay backend** — an outbound connection from the frame to a broker,
   so a cloud page can reach the clock from anywhere. A browser can't call the
   frame's LAN API from an `https://` page (mixed content), so a relay is the
-  only route. Today Telegram and Home Assistant fill that role.
+  only route. Today Home Assistant fills that role.
 
 ## Support the project
 

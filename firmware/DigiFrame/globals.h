@@ -1,24 +1,27 @@
 /* DigiFrame — globals, cross-core command queue, background tasks, colors */
 #pragma once
 
+#include <WiFi.h>
+#include <WiFiClientSecure.h>
+
 /**********************  3. GLOBALS  **********************************/
 MatrixPanel_I2S_DMA *dma = nullptr;
 AnimatedGIF gif;
-WiFiClientSecure tgClient;
-UniversalTelegramBot bot(BOT_TOKEN, tgClient);
 
 /* ---- runtime config: seeded from config.h defines, overridden by
         /config.json on LittleFS (editable from the web dashboard) ---- */
 String cfgWifiSsid   = WIFI_SSID;
 String cfgWifiPass   = WIFI_PASS;
-String botToken      = BOT_TOKEN;
-String allowedChatId = ALLOWED_CHAT_ID;
+String ntpServer     = "pool.ntp.org";
 /* weather location — fixed char buffers (not String) because the web
    handler (core 1) writes while weatherTask (core 0) reads; a short
    strlcpy race is harmless, a String heap realloc race is not. */
 char cfgLat[16]      = LATITUDE;
 char cfgLon[16]      = LONGITUDE;
 int  tzOffsetSec     = TZ_OFFSET_SEC;   // UTC offset in seconds (runtime-configurable)
+bool use24h          = (TIME_FORMAT == 24);
+int  displayRotation = ROTATION;
+int  cfgLang         = LANGUAGE;
 /* ---- Home Assistant / MQTT (off by default; editable at runtime) ---- */
 bool   mqttEnable = MQTT_ENABLE;
 String mqttHost   = MQTT_HOST;
@@ -27,58 +30,46 @@ String mqttUser   = MQTT_USER;
 String mqttPass   = MQTT_PASS;
 volatile bool mqttConfigDirty = false;  // set by web/BLE (core 1), applied by mqttTask (core 0)
 volatile bool weatherNow   = false;  // web handler asks for an immediate refetch
-volatile bool tgTokenDirty = false;  // set by web handler (core 1), applied by tgTask (core 0)
 bool          portalActive = false;  // setup hotspot + captive portal active
 volatile bool wifiRetryNow = false;  // web handler asks for an immediate STA (re)connect
+bool          swapColors   = false;  // swap G and B lines
+volatile bool isNightMode  = false;  // updated once per second in loop()
+
+uint8_t       cfgNightStart = 0;     // 0-23 (default 00:00)
+uint8_t       cfgNightEnd   = 7;     // 0-23 (default 07:00)
+uint8_t       cfgNightDays  = 127;   // bitmask 0=Sun..6=Sat (127 = all days)
+uint8_t       cfgNightOverride = 0;  // 0=Auto, 1=Force ON, 2=Force OFF
 
 /* defined in later headers, called from the tasks below */
-void handleTelegram();
 void fetchWeather();
 
-/* ---- cross-core command queue: the Telegram task AND the BLE config
-        task (both core 0) post here; the render loop (core 1) consumes it —
-        this is the ONLY safe way for core-0 work to touch LittleFS / the DMA
-        panel / openGif / saveConfig. New actions from either task must go
-        through postTgCmd(), never call the ctl* functions directly. ---- */
-enum TgCmd { TGC_NONE, TGC_PLAY_GIF,
-             TGC_MSG, TGC_PIN, TGC_STOP, TGC_CELEBRATE, TGC_BRIGHTNESS, TGC_TEST,
-             /* config actions added for the BLE dashboard (see control.h) */
-             TGC_DEL_GIF, TGC_INTERVAL, TGC_SET_WIFI, TGC_SET_LOC,
-             TGC_SET_TG, TGC_TGTEST, TGC_GIF_COMMIT,
-             /* typed special-days + Home Assistant config (JSON in strArg) */
-             TGC_EVENT_ADD, TGC_EVENT_DEL, TGC_SET_MQTT, TGC_SET_TZ };
-struct TgRequest {
-  TgCmd    cmd     = TGC_NONE;
+/* ---- cross-core command queue: the MQTT and Web tasks run on core 0,
+        but only core 1 can safely update the screen state/LittleFS.
+        Core 0 queues commands here; loop() on core 1 pops and executes
+        them safely. All UI handlers on core 0 MUST perform their actions
+        through postAction(), never call the ctl* functions directly. ---- */
+enum ActionCmd { CMD_NONE, CMD_PLAY_GIF, CMD_MSG, CMD_PIN, CMD_STOP, CMD_CELEBRATE, CMD_BRIGHTNESS, CMD_TEST, CMD_NIGHTMODE };
+struct ActionRequest {
+  ActionCmd  cmd     = CMD_NONE;
   String   strArg  = "";       // primary string (name / text / ssid / lat / token)
-  String   strArg2 = "";       // secondary string (pass / lon / chat)
-  uint8_t  intArg  = 0;        // brightness value, or GIF-upload pack flag
-  uint8_t *buf     = nullptr;   // TGC_GIF_COMMIT: PSRAM buffer (core 1 frees it)
-  size_t   bufLen  = 0;
+  String   strArg2 = "";       // secondary string (pass / lon / chatid)
+  int      intArg  = 0;        // numeric (brightness)
 };
-volatile bool    tgReqReady = false;
-TgRequest        tgReq;
-SemaphoreHandle_t tgReqMutex = NULL;   // guards tgReq / tgReqReady
+volatile bool hasActionReq = false;
+ActionRequest actionReq;
 
-/* ---- background task handles (network work runs on core 0) ---- */
-TaskHandle_t tgTaskHandle      = NULL;
+/* ---- FreeRTOS task handles and mutexes ---- */
 TaskHandle_t weatherTaskHandle = NULL;
 TaskHandle_t mqttTaskHandle    = NULL;
-SemaphoreHandle_t logMutex     = NULL;   // guards logBuf / logHead / logSeq
-void postTgCmd(TgCmd cmd, const String &str = "", uint8_t i = 0,
-               const String &str2 = "", uint8_t *buf = nullptr, size_t buflen = 0) {
-  if (!tgReqMutex) return;
-  xSemaphoreTake(tgReqMutex, portMAX_DELAY);
-  // single-slot queue: if an unconsumed GIF-upload commit is being
-  // overwritten, free its buffer first so we don't leak PSRAM.
-  if (tgReqReady && tgReq.cmd == TGC_GIF_COMMIT && tgReq.buf) free(tgReq.buf);
-  tgReq.cmd     = cmd;
-  tgReq.strArg  = str;
-  tgReq.strArg2 = str2;
-  tgReq.intArg  = i;
-  tgReq.buf     = buf;
-  tgReq.bufLen  = buflen;
-  tgReqReady    = true;
-  xSemaphoreGive(tgReqMutex);
+SemaphoreHandle_t logMutex = NULL;
+SemaphoreHandle_t actionMutex = NULL;
+
+void postAction(ActionCmd cmd, String s1 = "", String s2 = "", int i1 = 0) {
+  if (actionMutex && xSemaphoreTake(actionMutex, portMAX_DELAY)) {
+    actionReq.cmd = cmd; actionReq.strArg = s1; actionReq.strArg2 = s2; actionReq.intArg = i1;
+    hasActionReq = true;
+    xSemaphoreGive(actionMutex);
+  }
 }
 
 enum Mode { MODE_CLOCK, MODE_MSG, MODE_GIF, MODE_CELEBRATE, MODE_TEST, MODE_SETUP };
@@ -134,33 +125,6 @@ void logLine(const String &s) {
 }
 File     webUpload;
 uint32_t charEveryMs    = 10UL * 60000UL;   // random character cameo interval
-
-/* ---- background task: Telegram polling on core 0 ---- */
-void tgTask(void *pv) {
-  for (;;) {
-    if (tgTokenDirty) {                 // token changed on the dashboard —
-      tgTokenDirty = false;             // apply it here so only this task
-      bot.updateToken(botToken);        // ever touches the bot client
-      logLine("TG token updated");
-    }
-    if (WiFi.status() == WL_CONNECTED) {
-      static uint32_t lastBeat = 0;
-      uint32_t ms = millis();
-      if (ms - lastBeat > 60000) {
-        lastBeat = ms;
-        logLine("poll heartbeat (WiFi up, heap " + String(ESP.getFreeHeap() / 1024) + "KB)");
-      }
-      handleTelegram();
-    } else {
-      static uint32_t lastWarn = 0;
-      if (millis() - lastWarn > 30000) {
-        lastWarn = millis();
-        logLine("WiFi DOWN — Telegram paused");
-      }
-    }
-    vTaskDelay(pdMS_TO_TICKS(3000));
-  }
-}
 
 /* ---- background task: weather fetch on core 0 ---- */
 void weatherTask(void *pv) {

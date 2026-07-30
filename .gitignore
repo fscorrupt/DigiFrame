@@ -10,3 +10,14 @@ build/
 
 # local Claude Code settings
 .claude/settings.local.json
+
+# Arduino build cache
+arduino-build/
+*.bin
+*.elf
+*.map
+.vscode/
+.arduino-cli/
+.arduino/
+build_cache/
+arduino-cli.exe

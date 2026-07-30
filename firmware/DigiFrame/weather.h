@@ -5,15 +5,28 @@
 void fetchWeather() {
   WiFiClientSecure c;
   c.setInsecure();
+  c.setTimeout(5000);
   HTTPClient http;
+  http.setTimeout(5000);
   String url = String("https://api.open-meteo.com/v1/forecast?latitude=") + cfgLat +
                "&longitude=" + cfgLon + "&current=temperature_2m,weather_code";
-  if (http.begin(c, url) && http.GET() == 200) {
-    JsonDocument doc;
-    if (deserializeJson(doc, http.getString()) == DeserializationError::Ok) {
-      wTemp = doc["current"]["temperature_2m"].as<float>();
-      wCode = doc["current"]["weather_code"].as<int>();
+  if (http.begin(c, url)) {
+    int httpCode = http.GET();
+    if (httpCode == 200) {
+      JsonDocument doc;
+      String payload = http.getString();
+      if (deserializeJson(doc, payload) == DeserializationError::Ok) {
+        wTemp = doc["current"]["temperature_2m"].as<float>();
+        wCode = doc["current"]["weather_code"].as<int>();
+        logLine("Weather fetched: " + String(wTemp) + "C, code " + String(wCode));
+      } else {
+        logLine("Weather JSON parse failed");
+      }
+    } else {
+      logLine("Weather HTTP failed: " + String(httpCode));
     }
+  } else {
+    logLine("Weather HTTP begin failed");
   }
   http.end();
 }

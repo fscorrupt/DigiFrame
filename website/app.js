@@ -58,7 +58,7 @@
 
   // ---------- status + gif rendering ----------
   let editing = {};   // don't clobber a field the user is typing in
-  ["ssid", "pass", "tgToken", "tgChat", "lat", "lon", "interval", "tz"].forEach((id) => {
+  ["ssid", "pass", "tgToken", "tgChat", "lat", "lon", "interval", "tz", "tfm", "rot", "lang"].forEach((id) => {
     const el = $(id);
     el.addEventListener("focus", () => { editing[id] = true; });
     el.addEventListener("blur", () => { editing[id] = false; });
@@ -74,6 +74,9 @@
     ph("lat", "lat: " + s.lat);
     ph("lon", "lon: " + s.lon);
     if (s.tz !== undefined) ph("tz", "UTC" + (s.tz >= 0 ? "+" : "") + s.tz / 3600 + "h");
+    if (!editing.lang && document.activeElement !== $("lang")) $("lang").value = s.lang;
+    if (!editing.tfm && document.activeElement !== $("tfm")) $("tfm").value = s["24h"] ? "1" : "0";
+    if (!editing.rot && document.activeElement !== $("rot")) $("rot").value = s.rot;
     if (!editing.interval && document.activeElement !== $("interval")) $("interval").value = s.interval;
     if (document.activeElement !== $("bright")) {
       $("bright").value = s.bright;
@@ -145,6 +148,9 @@
     const h = parseFloat($("tz").value);
     if (!isNaN(h)) ble.setTz(Math.round(h * 3600));
   });
+  $("lang").onchange = guard(() => ble.lang(parseInt($("lang").value, 10)));
+  $("tfm").onchange = guard(() => ble.timefmt($("tfm").value === "1"));
+  $("rot").onchange = guard(() => ble.rotation(parseInt($("rot").value, 10)));
   $("wifiSave").onclick = guard(() => {
     ble.setWifi($("ssid").value.trim(), $("pass").value);
     $("wifiStatus").textContent = "WiFi: connecting…";

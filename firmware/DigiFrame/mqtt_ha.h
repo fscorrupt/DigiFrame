@@ -7,7 +7,7 @@
  * itself to Home Assistant via MQTT discovery, and exposes: brightness
  * (number), a message text box, celebrate/stop buttons, and temperature/mode
  * sensors. Runs on core 0 (mqttTask); every command is marshalled to core 1
- * through postTgCmd() -> control.h, exactly like the Telegram and BLE paths.
+ * through postAction() -> control.h, exactly like the Web Portal.
  * Off by default (MQTT_ENABLE=false), so non-HA users are unaffected. */
 
 WiFiClient   mqttNet;
@@ -53,6 +53,10 @@ void mqttPublishDiscovery() {
   { JsonDocument d; d["name"] = "Brightness"; d["uniq_id"] = mqttIdStr + "_bright";
     d["cmd_t"] = mqttBase + "/brightness/set"; d["stat_t"] = mqttBase + "/brightness";
     d["min"] = 1; d["max"] = 255; mqttPubDisco("number", "brightness", d); }
+  { JsonDocument d; d["name"] = "Night Mode"; d["uniq_id"] = mqttIdStr + "_nightmode";
+    d["cmd_t"] = mqttBase + "/nightmode/set"; d["stat_t"] = mqttBase + "/nightmode";
+    JsonArray opts = d["options"].to<JsonArray>(); opts.add("Auto"); opts.add("On"); opts.add("Off");
+    mqttPubDisco("select", "nightmode", d); }
   { JsonDocument d; d["name"] = "Message"; d["uniq_id"] = mqttIdStr + "_msg";
     d["cmd_t"] = mqttBase + "/message/set"; d["stat_t"] = mqttBase + "/message";
     mqttPubDisco("text", "message", d); }
@@ -73,6 +77,8 @@ void mqttPublishState(bool force) {
   if (!force && millis() - last < 10000) return;
   last = millis();
   mqttClient.publish((mqttBase + "/brightness").c_str(), String(userBrightness).c_str(), true);
+  const char* nm[] = {"Auto", "On", "Off"};
+  mqttClient.publish((mqttBase + "/nightmode").c_str(), nm[constrain(cfgNightOverride, 0, 2)], true);
   mqttClient.publish((mqttBase + "/mode").c_str(), mqttModeName(mode), true);
   mqttClient.publish((mqttBase + "/message").c_str(), scrollText.c_str(), true);
   if (!isnan(wTemp))
@@ -84,14 +90,23 @@ void mqttCallback(char *topic, byte *payload, unsigned int len) {
   String t = topic;
   String v; v.reserve(len);
   for (unsigned int i = 0; i < len; i++) v += (char)payload[i];
-  if      (t.endsWith("/brightness/set")) postTgCmd(TGC_BRIGHTNESS, "", (uint8_t)constrain(v.toInt(), 1, 255));
-  else if (t.endsWith("/message/set"))    postTgCmd(TGC_MSG, v);
-  else if (t.endsWith("/celebrate/set"))  postTgCmd(TGC_CELEBRATE);
-  else if (t.endsWith("/stop/set"))       postTgCmd(TGC_STOP);
+  if      (t.endsWith("/brightness/set")) postAction(CMD_BRIGHTNESS, "", "", (uint8_t)constrain(v.toInt(), 1, 255));
+  else if (t.endsWith("/message/set"))    postAction(CMD_MSG, v);
+  else if (t.endsWith("/celebrate/set"))  postAction(CMD_CELEBRATE);
+  else if (t.endsWith("/stop/set"))       postAction(CMD_STOP);
+  else if (t.endsWith("/nightmode/set")) {
+      uint8_t no = 0;
+      if (v == "Auto") no = 0;
+      else if (v == "On") no = 1;
+      else if (v == "Off") no = 2;
+      postAction(CMD_NIGHTMODE, "", "", no);
+      mqttClient.publish((mqttBase + "/nightmode").c_str(), v.c_str(), true);
+  }
   logLine("MQTT cmd: " + t + " = " + v);
 }
 
 bool mqttReconnect() {
+  mqttNet.setTimeout(2000);
   mqttIdStr = mqttMakeId();
   mqttBase  = "digiframe/" + mqttIdStr;
   mqttClient.setServer(mqttHost.c_str(), mqttPort > 0 ? mqttPort : 1883);
@@ -105,6 +120,7 @@ bool mqttReconnect() {
   logLine("MQTT connected to " + mqttHost);
   mqttClient.publish(will.c_str(), "online", true);
   mqttClient.subscribe((mqttBase + "/brightness/set").c_str());
+  mqttClient.subscribe((mqttBase + "/nightmode/set").c_str());
   mqttClient.subscribe((mqttBase + "/message/set").c_str());
   mqttClient.subscribe((mqttBase + "/celebrate/set").c_str());
   mqttClient.subscribe((mqttBase + "/stop/set").c_str());
@@ -117,13 +133,16 @@ void mqttTask(void *pv) {
   vTaskDelay(pdMS_TO_TICKS(4000));       // let setup() + first WiFi settle
   uint32_t lastTry = 0;
   for (;;) {
-    if (mqttConfigDirty) {               // config changed on the dashboard/BLE
+    if (mqttConfigDirty) {               // config changed on the dashboard
       mqttConfigDirty = false;
       if (mqttClient.connected()) mqttClient.disconnect();
     }
     if (mqttEnable && mqttHost.length() && WiFi.status() == WL_CONNECTED) {
       if (!mqttClient.connected()) {
-        if (millis() - lastTry > 5000) { lastTry = millis(); mqttReconnect(); }
+        if (millis() - lastTry > 30000) {  // 30s backoff prevents TCP timeout DOS
+          mqttReconnect(); 
+          lastTry = millis();            // record time AFTER blocking connect
+        }
       } else {
         mqttClient.loop();
         mqttPublishState(false);

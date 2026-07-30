@@ -3,18 +3,14 @@
 
 /**********************  1. USER CONFIG  ******************************/
 #define WIFI_SSID "YOUR_WIFI_SSID"
-#define WIFI_PASS "YOUR_WIFI_PASSWORD"
+#define WIFI_PASS "YOUR_WIFI_PASS"
 
-// Create a bot with @BotFather on Telegram, paste the token here.
-#define BOT_TOKEN "YOUR_BOT_TOKEN"
-// Send /start to your bot, then visit
-// https://api.telegram.org/bot<TOKEN>/getUpdates to find your chat id.
-// Only THIS chat id can control the frame (security!).
-#define ALLOWED_CHAT_ID "YOUR_CHAT_ID"
-
-#define TZ_OFFSET_SEC 19800 // default UTC+5:30 (override at runtime)
-#define LATITUDE "12.97"    // default location — set your own from the dashboard
-#define LONGITUDE "77.59"
+#define TZ_OFFSET_SEC 7200 // default UTC+5:30 (override at runtime)
+#define TIME_FORMAT 24      // 12 or 24 (override at runtime)
+#define ROTATION 270          // 0, 90, 180, 270 (override at runtime)
+#define LANGUAGE 1          // 0: EN, 1: DE (override at runtime)
+#define LATITUDE "47.93"    // default location — set your own from the dashboard
+#define LONGITUDE "13.07"
 
 #define DAY_BRIGHTNESS 100  // 0-255
 #define NIGHT_BRIGHTNESS 3  // midnight sleep glow — very dim (1 = dimmest visible)
@@ -43,22 +39,22 @@
    the dashboard). Off by default so non-HA users are unaffected. Point
    MQTT_HOST at your broker (e.g. the Mosquitto add-on) and enable it. The
    clock announces itself to Home Assistant via MQTT discovery. ---- */
-#define MQTT_ENABLE false
-#define MQTT_HOST ""          // broker IP/hostname, e.g. "192.168.1.10"
+#define MQTT_ENABLE true
+#define MQTT_HOST "192.168.1.56"          // broker IP/hostname, e.g. "192.168.1.10"
 #define MQTT_PORT 1883
-#define MQTT_USER ""
-#define MQTT_PASS ""
+#define MQTT_USER "YOUR_MQTT_USER"
+#define MQTT_PASS "YOUR_MQTT_PASS"
 
 /**********************  2. PIN MAP  **********************************/
 /* HUB75 (adjust freely if your wiring differs — every GPIO works,
    just avoid 0, 19/20 (USB), 26-32 (flash), 33-37 (PSRAM on N16R8),
    43/44 (UART), 45/46 (strapping). */
 #define R1_PIN 4
-#define G1_PIN 5
-#define B1_PIN 6
+#define G1_PIN 6
+#define B1_PIN 5
 #define R2_PIN 7
-#define G2_PIN 15
-#define B2_PIN 16
+#define G2_PIN 16
+#define B2_PIN 15
 #define A_PIN 18
 #define B_PIN 8
 #define C_PIN 9

@@ -146,6 +146,27 @@
   </fieldset>
 
   <fieldset>
+    <legend>Display &amp; Time Format</legend>
+    <div class="row">
+      <select id="lang" class="grow">
+        <option value="0">English</option>
+        <option value="1">Deutsch</option>
+      </select>
+      <select id="tfm" class="grow">
+        <option value="0">12-hour</option>
+        <option value="1">24-hour</option>
+      </select>
+      <select id="rot" class="grow">
+        <option value="0">0 deg</option>
+        <option value="90">90 deg</option>
+        <option value="180">180 deg</option>
+        <option value="270">270 deg</option>
+      </select>
+    </div>
+    <div class="st">clock updates right away</div>
+  </fieldset>
+
+  <fieldset>
     <legend>Home Assistant (MQTT)</legend>
     <label><input type="checkbox" id="mqEn"> enable</label>
     <div class="row" style="margin-top:6px">

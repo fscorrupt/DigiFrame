@@ -89,4 +89,3 @@ QR code on the panel.
    http://digiframe.local.
 
 Either way, if the old network reappears the frame rejoins it automatically.
-For control when you're away from home, use the Telegram bot.

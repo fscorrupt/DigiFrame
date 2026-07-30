@@ -75,10 +75,13 @@
     play(name)         { return this.control({ op: "play", name }); }
     del(name)          { return this.control({ op: "del", name }); }
     interval(min)      { return this.control({ op: "interval", min }); }
+    rotation(rot)      { return this.control({ op: "rotation", v: rot }); }
     celebrate(type, message) { return this.control({ op: "celebrate", type: type || "", message: message || "" }); }
     stop()             { return this.control({ op: "stop" }); }
     loc(lat, lon)      { return this.control({ op: "loc", lat, lon }); }
     setTz(seconds)     { return this.control({ op: "tz", seconds }); }
+    lang(l)            { return this.control({ op: "lang", v: l }); }
+    timefmt(is24h)     { return this.control({ op: "timefmt", v: is24h ? 1 : 0 }); }
     tgconfig(token, chat) { return this.control({ op: "tgconfig", token, chat }); }
     tgtest()           { return this.control({ op: "tgtest" }); }
     addEvent(date, type, message) { return this.control({ op: "event_add", date, type, message }); }

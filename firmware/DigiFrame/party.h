@@ -118,7 +118,7 @@ void runTest() {
       closeGif();
       mode = MODE_CLOCK;
       logLine("Test mode done");
-      if (testChat.length()) bot.sendMessage(testChat, "✅ Test complete — back to clock.");
+      if (testChat.length()) logLine("✅ Test complete — back to clock.");
       return;
     }
   }

@@ -36,9 +36,8 @@
  *   scroll.h        scrolling text renderer
  *   party.h         celebration (special-day) mode + test mode
  *   control.h       shared control layer (HTTP + MQTT call the same ctl*)
- *   telegram.h      Telegram bot commands + menus
- *   web_portal.h    web dashboard + captive portal pages
- *   mqtt_ha.h       Home Assistant integration over MQTT (optional)
+ *   web_portal.h    Dashboard + HTTP API routes
+ *   mqtt_ha.h       Home Assistant integration via MQTT (optional)
  *   qr_display.h    on-panel QR codes for setup mode
  *   wifi_manager.h  WiFi connect, hotspot fallback, auto-reconnect
  *
@@ -46,7 +45,7 @@
  *   - "ESP32 HUB75 LED MATRIX PANEL DMA Display" (mrfaptastic)
  *   - "Adafruit GFX Library"
  *   - "AnimatedGIF" (Larry Bank)
- *   - "UniversalTelegramBot" (Brian Lough)  + "ArduinoJson"
+ *   - "ArduinoJson"
  *   - "PubSubClient" (Nick O'Leary)
  *   (QR codes use the espressif__qrcode component bundled with the core)
  *
@@ -73,7 +72,6 @@
 #include <time.h>
 #include <ESP32-HUB75-MatrixPanel-I2S-DMA.h>
 #include <AnimatedGIF.h>
-#include <UniversalTelegramBot.h>
 #include <WebServer.h>
 #include <ESPmDNS.h>
 #include <Update.h>
@@ -87,7 +85,6 @@
 #include "scroll.h"
 #include "party.h"
 #include "control.h"
-#include "telegram.h"
 #include "web_portal.h"
 #include "mqtt_ha.h"
 #include "qr_display.h"
@@ -114,10 +111,25 @@ void setup() {
   Serial.begin(115200);
   delay(300);
 
+  /* ---- filesystem + persisted config (may override WiFi/TG creds) ----
+     NB: the fatflash partition scheme labels the data partition "ffat"
+     (not the LittleFS default "spiffs") — pass the label explicitly or
+     the mount fails and nothing (config/GIFs) ever persists. */
+  if (!LittleFS.begin(true, "/littlefs", 10, "ffat"))
+    Serial.println("LittleFS mount failed!");
+  loadConfig();
+  loadEvents();
+  loadCalendar();
+  seedDefaultGifs();          // one-time copy of the embedded default pack
+  heapReport("after LittleFS");
+
   /* ---- matrix ---- */
-  HUB75_I2S_CFG::i2s_pins pins = { R1_PIN, G1_PIN, B1_PIN, R2_PIN, G2_PIN,
-                                   B2_PIN, A_PIN, B_PIN, C_PIN, D_PIN, E_PIN,
-                                   LAT_PIN, OE_PIN, CLK_PIN };
+  HUB75_I2S_CFG::i2s_pins pins = { 
+    R1_PIN, (int8_t)(swapColors ? B1_PIN : G1_PIN), (int8_t)(swapColors ? G1_PIN : B1_PIN), 
+    R2_PIN, (int8_t)(swapColors ? B2_PIN : G2_PIN), (int8_t)(swapColors ? G2_PIN : B2_PIN), 
+    A_PIN, B_PIN, C_PIN, D_PIN, E_PIN,
+    LAT_PIN, OE_PIN, CLK_PIN 
+  };
   HUB75_I2S_CFG cfg(PANEL_W, PANEL_H, 1, pins);
   cfg.latch_blanking = 2;          // helps ghosting on some P2.5 panels
   cfg.clkphase = false;            // flip if you see column shift
@@ -126,23 +138,13 @@ void setup() {
   dma = new MatrixPanel_I2S_DMA(cfg);
   dma->begin();
   heapReport("after dma->begin()");
-  dma->setBrightness8(DAY_BRIGHTNESS);
+  dma->setBrightness8(userBrightness);
+  dma->setRotation(displayRotation / 90);
   dma->fillScreen(0);
   dma->setTextSize(1);
   dma->setTextColor(C_TIME);
   dma->setCursor(1, 12);
   dma->print("HELLO");
-
-  /* ---- filesystem + persisted config (may override WiFi/TG creds) ----
-     NB: the fatflash partition scheme labels the data partition "ffat"
-     (not the LittleFS default "spiffs") — pass the label explicitly or
-     the mount fails and nothing (config/GIFs) ever persists. */
-  if (!LittleFS.begin(true, "/littlefs", 10, "ffat"))
-    Serial.println("LittleFS mount failed!");
-  seedDefaultGifs();          // one-time copy of the embedded default pack
-  loadEvents();
-  loadConfig();
-  dma->setBrightness8(userBrightness);
 
   /* ---- wifi (falls back to hotspot + on-screen QR portal) ---- */
   if (wifiConnect(20000)) {
@@ -161,13 +163,6 @@ void setup() {
     localtime_r(&now, &tmNow);
     logLine("Time sync: " + String(now > 8 * 3600 ? "OK" : "FAILED"));
   }
-
-  /* ---- telegram ---- */
-  tgClient.setCACert(TELEGRAM_CERTIFICATE_ROOT);
-  bot.updateToken(botToken);       // config.json may hold a newer token
-  bot.longPoll = 0;                // never block the render loop
-  logLine("Telegram ready, allowed chat_id=" + allowedChatId);
-
   /* ---- local dashboard: http://digiframe.local / http://192.168.4.1 ---- */
   setupWeb();
   if (WiFi.status() == WL_CONNECTED && MDNS.begin("digiframe"))
@@ -175,12 +170,10 @@ void setup() {
 
   /* ---- first weather ---- */
   if (WiFi.status() == WL_CONNECTED) fetchWeather();
-  gif.begin(LITTLE_ENDIAN_PIXELS);
+  gif.begin(BIG_ENDIAN_PIXELS);
 
-  /* ---- create mutexes and start background tasks on core 0 ---- */
   logMutex    = xSemaphoreCreateMutex();
-  tgReqMutex  = xSemaphoreCreateMutex();
-  xTaskCreatePinnedToCore(tgTask,      "telegram", 8192, NULL, 1, &tgTaskHandle,      0);
+  actionMutex = xSemaphoreCreateMutex();
   xTaskCreatePinnedToCore(weatherTask, "weather",  4096, NULL, 1, &weatherTaskHandle, 0);
   xTaskCreatePinnedToCore(mqttTask,    "mqtt",     6144, NULL, 1, &mqttTaskHandle,    0);
 
@@ -205,10 +198,26 @@ void loop() {
     // Night is a *cap*, not a fixed level: it dims down to NIGHT_BRIGHTNESS,
     // but a lower manual setting still wins — so the slider works at night.
     if (mode != MODE_CELEBRATE && mode != MODE_SETUP) {
-      bool night = (tmNow.tm_hour >= NIGHT_START_HR && tmNow.tm_hour < NIGHT_END_HR);
+      if (cfgNightOverride == 1) isNightMode = true;
+      else if (cfgNightOverride == 2) isNightMode = false;
+      else {
+        // Auto schedule
+        bool dayEnabled = (cfgNightDays & (1 << tmNow.tm_wday));
+        bool inTime = false;
+        if (cfgNightStart < cfgNightEnd) {
+          inTime = (tmNow.tm_hour >= cfgNightStart && tmNow.tm_hour < cfgNightEnd);
+        } else {
+          inTime = (tmNow.tm_hour >= cfgNightStart || tmNow.tm_hour < cfgNightEnd);
+        }
+        isNightMode = (dayEnabled && inTime);
+      }
       uint8_t target = userBrightness;
-      if (night && target > NIGHT_BRIGHTNESS) target = NIGHT_BRIGHTNESS;
+      if (isNightMode) {
+        target = 1; // absolute minimum visible brightness
+      }
       dma->setBrightness8(target);
+    } else {
+      isNightMode = false;
     }
 
     // auto-start the celebration at 00:00 on a special day (not while in setup)
@@ -232,41 +241,27 @@ void loop() {
     }
   }
 
-  /* --- weather every 20 min — handled by weatherTask on core 0 --- */
-
-  /* --- telegram every 3 s — handled by tgTask on core 0 --- */
-
-  /* --- consume a pending command posted from core 0 (Telegram or BLE) on
-         this core, where LittleFS / DMA / openGif are safe. All the real
-         work lives in control.h so HTTP + BLE + Telegram stay in sync. --- */
-  if (tgReqReady && tgReqMutex && xSemaphoreTake(tgReqMutex, 0) == pdTRUE) {
-    TgRequest req = tgReq;
-    tgReqReady = false;
-    tgReq.buf  = nullptr;          // ownership moved to local `req`
-    xSemaphoreGive(tgReqMutex);
+  /* --- consume a pending command posted from core 0 (Web/MQTT) on
+         core 1. Touching LittleFS/DMA is only safe here. The actual
+         work lives in control.h so HTTP + MQTT stay in sync. --- */
+  if (hasActionReq && actionMutex && xSemaphoreTake(actionMutex, 0) == pdTRUE) {
+    ActionRequest req = actionReq;
+    hasActionReq = false;
+    xSemaphoreGive(actionMutex);
     switch (req.cmd) {
-      case TGC_PLAY_GIF:   ctlPlayGif(req.strArg);                       break;
-      case TGC_MSG:        ctlSendMsg(req.strArg, false);                break;
-      case TGC_PIN:        ctlSendMsg(req.strArg, true);                 break;
-      case TGC_STOP:       ctlStop();                                    break;
-      case TGC_CELEBRATE:  (req.strArg.length() || req.strArg2.length())
+      case CMD_PLAY_GIF:   ctlPlayGif(req.strArg);                       break;
+      case CMD_MSG:        ctlSendMsg(req.strArg, false);                break;
+      case CMD_PIN:        ctlSendMsg(req.strArg, true);                 break;
+      case CMD_STOP:       ctlStop();                                    break;
+      case CMD_CELEBRATE:  (req.strArg.length() || req.strArg2.length())
                              ? startCelebration(req.strArg, req.strArg2)
                              : ctlCelebrate();                            break;
-      case TGC_TEST:       startTest(req.strArg);                        break;
-      case TGC_BRIGHTNESS: ctlSetBrightness(req.intArg);                 break;
-      case TGC_DEL_GIF:    ctlDelGif(req.strArg);                        break;
-      case TGC_INTERVAL:   ctlSetInterval(req.strArg.toInt());           break;
-      case TGC_SET_WIFI:   ctlSetWifi(req.strArg, req.strArg2);          break;
-      case TGC_SET_LOC:    ctlSetLoc(req.strArg, req.strArg2);           break;
-      case TGC_SET_TG:     ctlSetTg(req.strArg, req.strArg2);            break;
-      case TGC_TGTEST:     ctlTgTest();                                  break;
-      case TGC_GIF_COMMIT:
-        ctlCommitGif(req.strArg, req.intArg != 0, req.buf, req.bufLen);
-        if (req.buf) free(req.buf);                                      break;
-      case TGC_EVENT_ADD:  ctlAddEventJson(req.strArg);                  break;
-      case TGC_EVENT_DEL:  ctlDelEvent(req.strArg);                     break;
-      case TGC_SET_MQTT:   ctlSetMqttJson(req.strArg);                  break;
-      case TGC_SET_TZ:     ctlSetTz(req.strArg.toInt());                break;
+      case CMD_TEST:       startTest(req.strArg);                        break;
+      case CMD_BRIGHTNESS: ctlSetBrightness(req.intArg);                 break;
+      case CMD_NIGHTMODE:
+        cfgNightOverride = req.intArg;
+        saveConfig();
+        break;
       default: break;
     }
   }

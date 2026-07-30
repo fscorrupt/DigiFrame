@@ -778,22 +778,29 @@ void drawWeatherBg() {
 void renderClock() {
   frameNo++;
   dma->fillScreen(0);      // safe: writing to back buffer, DMA scans front buffer
-  drawWeatherBg();
+  if (!isNightMode) {
+    drawWeatherBg();
+  }
   char buf[20];
 
   /* --- 12-hour time, visually centered: the block width adapts to a
      1- or 2-digit hour so the rendered content is always centered.
      Colon blinks bright<->dim (never vanishes, so no fake gap). --- */
-  int h12 = tmNow.tm_hour % 12;
-  if (h12 == 0) h12 = 12;
+  int h = use24h ? tmNow.tm_hour : (tmNow.tm_hour % 12);
+  if (!use24h && h == 0) h = 12;
   bool pm = (tmNow.tm_hour >= 12);
   char hs[4], msb[4];
-  snprintf(hs, sizeof(hs), "%d", h12);
+  if (use24h) {
+    snprintf(hs, sizeof(hs), "%02d", h);
+  } else {
+    snprintf(hs, sizeof(hs), "%d", h);
+  }
   snprintf(msb, sizeof(msb), "%02d", tmNow.tm_min);
   const int COLON_W = 5, MIN_W = 24, AMPM_W = 11;
-  int hw   = (h12 >= 10) ? 24 : 12;
-  int gap  = (h12 >= 10) ? 0 : 2;                  // 2-digit uses full width
-  int xoff = (PANEL_W - (hw + COLON_W + MIN_W + gap + AMPM_W)) / 2;
+  int hw   = (use24h || h >= 10) ? 24 : 12;
+  int gap  = (hw == 24) ? 0 : 2;                  // 2-digit uses full width
+  int totalW = hw + COLON_W + MIN_W + gap + (use24h ? 0 : AMPM_W);
+  int xoff = (PANEL_W - totalW) / 2;
   if (xoff < 0) xoff = 0;
   dma->setTextWrap(false);
   dma->setTextSize(2);
@@ -805,10 +812,12 @@ void renderClock() {
   dma->fillRect(xoff + hw + 1, 12, 2, 2, colonC);
   dma->setCursor(xoff + hw + COLON_W, 2);
   dma->print(msb);
-  dma->setTextSize(1);
-  dma->setTextColor(C_DATE);
-  dma->setCursor(xoff + hw + COLON_W + MIN_W + gap, 10);
-  dma->print(pm ? "PM" : "AM");
+  if (!use24h) {
+    dma->setTextSize(1);
+    dma->setTextColor(C_DATE);
+    dma->setCursor(xoff + hw + COLON_W + MIN_W + gap, 10);
+    dma->print(pm ? "PM" : "AM");
+  }
 
   /* --- seconds comet: a soft trail grows across beneath the time,
      with a pulsing bright head — a full sweep every minute --- */
@@ -818,23 +827,62 @@ void renderClock() {
   dma->drawPixel(2 + secs, 17, ((frameNo / 3) % 2) ? C_ACCENT : C_TIME);
 
   /* --- living scene (rows 20-44) --- */
-  drawAmbient();
+  if (!isNightMode) {
+    drawAmbient();
+  }
 
   /* --- footer: date/temp block and the potted plant share the same
      top and bottom edges (rows 47-62), so nothing floats in dead space --- */
-  static const char *DOW[7] = {"SUN","MON","TUE","WED","THU","FRI","SAT"};
-  snprintf(buf, sizeof(buf), "%s %d", DOW[tmNow.tm_wday], tmNow.tm_mday);
-  dma->setTextColor(C_DATE);
-  dma->setCursor(2, 47);
-  dma->print(buf);
-  if (!isnan(wTemp)) {
-    snprintf(buf, sizeof(buf), "%dC", (int)round(wTemp));
+  static const char *DOW[2][7] = {
+    {"SUN","MON","TUE","WED","THU","FRI","SAT"},
+    {"SON","MON","DIE","MIT","DON","FRE","SAM"}
+  };
+  
+  String calEventName;
+  bool hasCal = getNextCalendarEvent(calEventName);
+  
+  // If we have a calendar event, show it every 10 seconds for 4 seconds
+  if (hasCal && ((millis() / 1000) % 10) >= 6) {
+    dma->setTextSize(1);
+    dma->setTextColor(C_ACCENT);
+    dma->setCursor(2, 47);
+    dma->print("EVENT:");
+    dma->setTextColor(dma->color565(200, 200, 200));
+    dma->setCursor(2, 55);
+    
+    // Simple scrolling for long calendar names
+    int maxLen = 9;
+    if (calEventName.length() > maxLen) {
+      int scrollMax = calEventName.length() - maxLen;
+      int scrollStep = (millis() / 500) % (scrollMax + 4);
+      if (scrollStep > scrollMax) scrollStep = scrollMax; // pause at end
+      dma->print(calEventName.substring(scrollStep, scrollStep + maxLen));
+    } else {
+      dma->print(calEventName);
+    }
+  } else {
+    // Normal Date & Temp footer
+    snprintf(buf, sizeof(buf), "%s %d", DOW[cfgLang == 1 ? 1 : 0][tmNow.tm_wday], tmNow.tm_mday);
+    dma->setTextSize(1);
+    dma->setTextColor(C_DATE);
+    dma->setCursor(2, 47);
+    dma->print(buf);
     dma->setTextColor(C_TEMP);
     dma->setCursor(2, 55);
+    if (!isnan(wTemp)) {
+      snprintf(buf, sizeof(buf), "%dC", (int)round(wTemp));
+    } else {
+      strlcpy(buf, "--C", sizeof(buf));
+    }
     dma->print(buf);
+    if (!isNightMode) {
+      drawWeatherIconAnim(24, 54, frameNo);   // animated icon, clear of the date row
+    }
   }
-  drawWeatherIconAnim(24, 54, frameNo);   // animated icon, clear of the date row
-  drawPottedPlant(41, 59, frameNo);       // wider pot fills the right column edge-to-edge
+  
+  if (!isNightMode) {
+    drawPottedPlant(41, 59, frameNo);       // wider pot fills the right column edge-to-edge
+  }
   dma->flipDMABuffer();                   // present completed back buffer atomically
 }
 
