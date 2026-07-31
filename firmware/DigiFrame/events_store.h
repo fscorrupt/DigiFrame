@@ -105,11 +105,14 @@ void loadCalendar() {
   if (deserializeJson(doc, f) == DeserializationError::Ok) {
     for (JsonObject o : doc.as<JsonArray>()) {
       if (numCalEvents >= MAX_CALENDAR) break;
-      calEvents[numCalEvents++] = {
-        o["d"].as<String>(),
-        o["t"].is<const char*>() ? o["t"].as<String>() : String(""),
-        o["m"].as<String>()
-      };
+      String d = o["d"].as<String>();
+      String t = o["t"].is<const char*>() ? o["t"].as<String>() : String("");
+      String m = o["m"].as<String>();
+      if (t.length() == 0 && m.length() >= 8 && m[2] == ':' && m.substring(5, 8) == " - ") {
+        t = m.substring(0, 5);
+        m = m.substring(8);
+      }
+      calEvents[numCalEvents++] = { d, t, m };
     }
   }
   f.close();
@@ -121,11 +124,14 @@ void setCalendarFromJson(const String &jsonStr) {
     numCalEvents = 0;
     for (JsonObject o : doc.as<JsonArray>()) {
       if (numCalEvents >= MAX_CALENDAR) break;
-      calEvents[numCalEvents++] = { 
-        o["d"].as<String>(), 
-        o["t"].is<const char*>() ? o["t"].as<String>() : String(""), 
-        o["m"].as<String>() 
-      };
+      String d = o["d"].as<String>();
+      String t = o["t"].is<const char*>() ? o["t"].as<String>() : String("");
+      String m = o["m"].as<String>();
+      if (t.length() == 0 && m.length() >= 8 && m[2] == ':' && m.substring(5, 8) == " - ") {
+        t = m.substring(0, 5);
+        m = m.substring(8);
+      }
+      calEvents[numCalEvents++] = { d, t, m };
     }
     saveCalendar();
   }

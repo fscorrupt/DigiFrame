@@ -560,16 +560,16 @@ void drawCalendarEventsOnScene(uint32_t f) {
     int namePx   = PANEL_W - msgStartX;
     dma->setTextColor(theme.calTime);
     
-    if (getUTF8TextWidth(name, 1) <= namePx) {
-      drawUTF8Text(msgStartX, yStarts[i], name, 1);
+    if (getUTF8TextWidth(name, 1, true) <= namePx) {
+      drawUTF8Text(msgStartX, yStarts[i], name, 1, true);
     } else {
-      int excess     = getUTF8TextWidth(name, 1) - namePx;
+      int excess     = getUTF8TextWidth(name, 1, true) - namePx;
       int pauseFrames = 20;                  
       int totalRange  = excess + pauseFrames * 2;
       int tick = (int)((f / 3 + i * 30) % (uint32_t)totalRange); 
       int scroll = constrain(tick - pauseFrames, 0, excess);
       
-      drawUTF8Text(msgStartX - scroll, yStarts[i], name, 1);
+      drawUTF8Text(msgStartX - scroll, yStarts[i], name, 1, true);
       dma->fillRect(0, yStarts[i], msgStartX, 8, 0); // blank out left edge bleed
       if (timeStr.length() > 0) {
         // Redraw time on top

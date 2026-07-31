@@ -2,6 +2,7 @@
 #pragma once
 
 #include <Arduino.h>
+#include <Fonts/TomThumb.h>
 
 const uint16_t EMOJI_HEART[64] PROGMEM = {
   0x0000, 0xF800, 0xF800, 0x0000, 0xF800, 0xF800, 0x0000, 0x0000, 0xF800, 0xF800, 0xF800, 0xF800, 0xF800, 0xF800, 0xF800, 0x0000, 0xF800, 0xF800, 0xF800, 0xF800, 0xF800, 0xF800, 0xF800, 0x0000, 0xF800, 0xF800, 0xF800, 0xF800, 0xF800, 0xF800, 0xF800, 0x0000, 0x0000, 0xF800, 0xF800, 0xF800, 0xF800, 0xF800, 0x0000, 0x0000, 0x0000, 0x0000, 0xF800, 0xF800, 0xF800, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0xF800, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
@@ -71,14 +72,17 @@ const uint16_t* getEmojiBitmap(uint32_t codepoint) {
 }
 
 // Draw a UTF-8 string to dma, handling emojis. Returns the x-coordinate after drawing.
-int drawUTF8Text(int startX, int startY, const String &text, uint8_t text_size = 1) {
+int drawUTF8Text(int startX, int startY, const String &text, uint8_t text_size = 1, bool isTiny = false) {
   int i = 0;
   int len = text.length();
   int x = startX;
   int y = startY;
+  int charWidth = isTiny ? 4 : 6;
+  int yOffset = isTiny ? 5 : 0;
   
   // Save current cursor and size
   dma->setTextSize(text_size);
+  if (isTiny) dma->setFont(&TomThumb);
   
   while (i < len) {
     uint8_t c = text[i];
@@ -88,9 +92,9 @@ int drawUTF8Text(int startX, int startY, const String &text, uint8_t text_size =
       i += 1;
     } else if (c < 0x80) {
       // 1-byte ASCII
-      dma->setCursor(x, y);
+      dma->setCursor(x, y + yOffset);
       dma->print((char)c);
-      x += 6 * text_size;
+      x += charWidth * text_size;
       i += 1;
     } else if ((c & 0xE0) == 0xC0) {
       // 2-byte UTF-8
@@ -112,8 +116,10 @@ int drawUTF8Text(int startX, int startY, const String &text, uint8_t text_size =
           else if (cp == 0x00DF) mapped_cp437 = 0xE1; // ß
           
           if (mapped_cp437) {
+            if (isTiny) dma->setFont();
             dma->setCursor(x, y);
             dma->print((char)mapped_cp437);
+            if (isTiny) dma->setFont(&TomThumb);
             x += 6 * text_size;
           }
         }
@@ -130,7 +136,7 @@ int drawUTF8Text(int startX, int startY, const String &text, uint8_t text_size =
         } else if (cp == 0xFE0F) { // Variation selector 16, just skip
           // Do not increment x
         } else {
-          x += 6 * text_size;
+          x += charWidth * text_size;
         }
       }
       i += 3;
@@ -143,7 +149,7 @@ int drawUTF8Text(int startX, int startY, const String &text, uint8_t text_size =
           dma->drawRGBBitmap(x, y, bmp, 8, 8);
           x += 9;
         } else {
-          x += 6 * text_size;
+          x += charWidth * text_size;
         }
       }
       i += 4;
@@ -152,15 +158,17 @@ int drawUTF8Text(int startX, int startY, const String &text, uint8_t text_size =
       i += 1;
     }
   }
+  if (isTiny) dma->setFont();
   return x;
 }
 
 // Measure the pixel width of a UTF-8 string for scrolling logic
-int getUTF8TextWidth(const String &text, uint8_t text_size = 1) {
+int getUTF8TextWidth(const String &text, uint8_t text_size = 1, bool isTiny = false) {
   int max_width = 0;
   int current_width = 0;
   int i = 0;
   int len = text.length();
+  int charWidth = isTiny ? 4 : 6;
   
   while (i < len) {
     uint8_t c = text[i];
@@ -169,7 +177,7 @@ int getUTF8TextWidth(const String &text, uint8_t text_size = 1) {
       current_width = 0;
       i += 1;
     } else if (c < 0x80) {
-      current_width += 6 * text_size;
+      current_width += charWidth * text_size;
       i += 1;
     } else if ((c & 0xE0) == 0xC0) {
       uint32_t cp = ((c & 0x1F) << 6) | (text[i+1] & 0x3F);
@@ -186,11 +194,11 @@ int getUTF8TextWidth(const String &text, uint8_t text_size = 1) {
     } else if ((c & 0xF0) == 0xE0) {
       uint32_t cp = ((c & 0x0F) << 12) | ((text[i+1] & 0x3F) << 6) | (text[i+2] & 0x3F);
       if (getEmojiBitmap(cp)) current_width += 9;
-      else if (cp != 0xFE0F) current_width += 6 * text_size;
+      else if (cp != 0xFE0F) current_width += charWidth * text_size;
       i += 3;
     } else if ((c & 0xF8) == 0xF0) {
       uint32_t cp = ((c & 0x07) << 18) | ((text[i+1] & 0x3F) << 12) | ((text[i+2] & 0x3F) << 6) | (text[i+3] & 0x3F);
-      if (getEmojiBitmap(cp)) current_width += 9; else current_width += 6 * text_size;
+      if (getEmojiBitmap(cp)) current_width += 9; else current_width += charWidth * text_size;
       i += 4;
     } else {
       i += 1;
