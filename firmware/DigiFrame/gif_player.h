@@ -58,13 +58,9 @@ void GIFDraw(GIFDRAW *pDraw) {
   int w    = pDraw->iWidth;
   uint8_t *s = pDraw->pPixels;                    // s[x] maps to source x = iX + x
 
-  if (pDraw->ucDisposalMethod == 2) {             // restore-to-background
-    for (int x = 0; x < w; x++)
-      if (s[x] == pDraw->ucTransparent) s[x] = pDraw->ucBackground;
-    pDraw->ucHasTransparency = 0;
-  }
-  bool    hasT = pDraw->ucHasTransparency;
-  uint8_t tr   = pDraw->ucTransparent;
+  bool    hasT  = pDraw->ucHasTransparency;
+  uint8_t tr    = pDraw->ucTransparent;
+  bool    disp2 = (pDraw->ucDisposalMethod == 2);
 
   int py = gifNeedsScale ? gifOffY + (int)(srcY / gifScaleY)
                          : gifOffY + srcY;
@@ -73,11 +69,17 @@ void GIFDraw(GIFDRAW *pDraw) {
 
   for (int x = 0; x < w; x++) {
     uint8_t c = s[x];
-    if (hasT && c == tr) continue;                // leave prior pixel in place
     int srcX = pDraw->iX + x;
     int px = gifNeedsScale ? gifOffX + (int)(srcX / gifScaleX)
                            : gifOffX + srcX;
-    if (px >= 0 && px < PANEL_W) dst[px] = pal[c];
+    if (px < 0 || px >= PANEL_W) continue;
+    
+    if (hasT && c == tr) {
+      if (disp2) dst[px] = 0; // disposal method 2: restore to background (black)
+      continue;               // otherwise leave prior pixel in place
+    }
+    
+    dst[px] = pal[c];
   }
 }
 

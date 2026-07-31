@@ -78,6 +78,7 @@
 
 #include "config.h"
 #include "globals.h"
+#include "utf8_emoji.h"
 #include "gif_player.h"
 #include "events_store.h"
 #include "weather.h"
@@ -124,9 +125,28 @@ void setup() {
   heapReport("after LittleFS");
 
   /* ---- matrix ---- */
+  int8_t r1 = R1_PIN, g1 = G1_PIN, b1 = B1_PIN;
+  int8_t r2 = R2_PIN, g2 = G2_PIN, b2 = B2_PIN;
+  if (colorOrder == 1) { // RBG
+      g1 = B1_PIN; b1 = G1_PIN;
+      g2 = B2_PIN; b2 = G2_PIN;
+  } else if (colorOrder == 2) { // GRB
+      r1 = G1_PIN; g1 = R1_PIN;
+      r2 = G2_PIN; g2 = R2_PIN;
+  } else if (colorOrder == 3) { // GBR
+      r1 = G1_PIN; g1 = B1_PIN; b1 = R1_PIN;
+      r2 = G2_PIN; g2 = B2_PIN; b2 = R2_PIN;
+  } else if (colorOrder == 4) { // BRG
+      r1 = B1_PIN; g1 = R1_PIN; b1 = G1_PIN;
+      r2 = B2_PIN; g2 = R2_PIN; b2 = G2_PIN;
+  } else if (colorOrder == 5) { // BGR
+      r1 = B1_PIN; b1 = R1_PIN;
+      r2 = B2_PIN; b2 = R2_PIN;
+  }
+
   HUB75_I2S_CFG::i2s_pins pins = { 
-    R1_PIN, (int8_t)(swapColors ? B1_PIN : G1_PIN), (int8_t)(swapColors ? G1_PIN : B1_PIN), 
-    R2_PIN, (int8_t)(swapColors ? B2_PIN : G2_PIN), (int8_t)(swapColors ? G2_PIN : B2_PIN), 
+    r1, g1, b1, 
+    r2, g2, b2, 
     A_PIN, B_PIN, C_PIN, D_PIN, E_PIN,
     LAT_PIN, OE_PIN, CLK_PIN 
   };
@@ -170,7 +190,7 @@ void setup() {
 
   /* ---- first weather ---- */
   if (WiFi.status() == WL_CONNECTED) fetchWeather();
-  gif.begin(BIG_ENDIAN_PIXELS);
+  gif.begin(LITTLE_ENDIAN_PIXELS);
 
   logMutex    = xSemaphoreCreateMutex();
   actionMutex = xSemaphoreCreateMutex();

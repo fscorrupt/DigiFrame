@@ -78,7 +78,7 @@ int daysToNextEvent(String &nameOut) {
 }
 
 /**********************  6a. CALENDAR EVENTS (from HA)  ****************/
-struct CalendarEvent { String date; String message; };
+struct CalendarEvent { String date; String time; String message; };
 #define MAX_CALENDAR 10
 CalendarEvent calEvents[MAX_CALENDAR];
 int numCalEvents = 0;
@@ -119,7 +119,7 @@ void setCalendarFromJson(const String &jsonStr) {
     numCalEvents = 0;
     for (JsonObject o : doc.as<JsonArray>()) {
       if (numCalEvents >= MAX_CALENDAR) break;
-      calEvents[numCalEvents++] = { o["d"].as<String>(), o["m"].as<String>() };
+      calEvents[numCalEvents++] = { o["d"].as<String>(), o["t"].as<String>(), o["m"].as<String>() };
     }
     saveCalendar();
   }
@@ -153,7 +153,7 @@ void saveConfig() {
   JsonDocument d;
   d["charMin"] = charEveryMs / 60000UL;
   d["bright"]  = userBrightness;
-  d["swap"]    = swapColors;
+  d["cord"]    = colorOrder;
   d["ns"]      = cfgNightStart;
   d["ne"]      = cfgNightEnd;
   d["nd"]      = cfgNightDays;
@@ -171,6 +171,14 @@ void saveConfig() {
   d["mqttPort"] = mqttPort;
   d["mqttUser"] = mqttUser;
   d["mqttPass"] = mqttPass;
+  d["cH"] = theme.hourHex;
+  d["cM"] = theme.minHex;
+  d["cC"] = theme.colonHex;
+  d["cS"] = theme.secHex;
+  d["cD"] = theme.dateHex;
+  d["cT"] = theme.tempHex;
+  d["cCtx"] = theme.calTextHex;
+  d["cCtm"] = theme.calTimeHex;
   File f = LittleFS.open("/config.json", "w");
   serializeJson(d, f);
   f.close();
@@ -182,7 +190,10 @@ void loadConfig() {
   if (deserializeJson(d, f) == DeserializationError::Ok) {
     if (d["charMin"].is<int>()) charEveryMs = (uint32_t)d["charMin"].as<int>() * 60000UL;
     if (d["bright"].is<int>())  userBrightness = constrain(d["bright"].as<int>(), 1, 255);
-    if (d["swap"].is<bool>())   swapColors = d["swap"].as<bool>();
+    if (d["cord"].is<int>())       colorOrder = constrain(d["cord"].as<int>(), 0, 5);
+    // Backward compat: old config used a bool "swap" or "swc" for G↔B swap
+    else if (d["swap"].is<bool>() && d["swap"].as<bool>()) colorOrder = 1;
+    else if (d["swc"].is<bool>()  && d["swc"].as<bool>())  colorOrder = 1;
     if (d["ns"].is<int>())      cfgNightStart = d["ns"].as<int>();
     if (d["ne"].is<int>())      cfgNightEnd = d["ne"].as<int>();
     if (d["nd"].is<int>())      cfgNightDays = d["nd"].as<int>();
@@ -200,6 +211,17 @@ void loadConfig() {
     if (d["mqttPort"].is<int>())         mqttPort   = d["mqttPort"].as<int>();
     if (d["mqttUser"].is<const char*>()) mqttUser   = d["mqttUser"].as<String>();
     if (d["mqttPass"].is<const char*>()) mqttPass   = d["mqttPass"].as<String>();
+    
+    if (d["cH"].is<const char*>()) theme.hourHex = d["cH"].as<String>();
+    if (d["cM"].is<const char*>()) theme.minHex = d["cM"].as<String>();
+    if (d["cC"].is<const char*>()) theme.colonHex = d["cC"].as<String>();
+    if (d["cS"].is<const char*>()) theme.secHex = d["cS"].as<String>();
+    if (d["cD"].is<const char*>()) theme.dateHex = d["cD"].as<String>();
+    if (d["cT"].is<const char*>()) theme.tempHex = d["cT"].as<String>();
+    if (d["cCtx"].is<const char*>()) theme.calTextHex = d["cCtx"].as<String>();
+    if (d["cCtm"].is<const char*>()) theme.calTimeHex = d["cCtm"].as<String>();
+    
+    applyThemeColors();
   }
   f.close();
 }

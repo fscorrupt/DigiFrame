@@ -8,8 +8,9 @@ control it from the **clock's own web dashboard** on your WiFi, or **Home Assist
 > **Note on this fork**: This version of DigiFrame has been extensively modified from the original upstream repository. Key differences include:
 > - **Telegram Removed**: The Telegram bot integration has been completely removed to slim down the firmware and reduce dependencies.
 > - **Night Mode Added**: A new Night Mode has been added which hides animations and dims the screen. It can be toggled via Home Assistant (MQTT).
-> - **Color Fixes**: Fixed GIF colors by swapping `AnimatedGIF` to Big Endian mode, and adapted the default pin configuration for an RBG matrix panel.
-> - **Calendar Integration**: Added robust support for integrating Home Assistant calendar events via MQTT.
+> - **Color & GIF Rendering Fixes**: Fixed general GIF colors by swapping `AnimatedGIF` to Big Endian mode, and adapted the default pin configuration for an RGB matrix panel. Completely overhauled how transparent GIFs are composited, ensuring transparent pixels render perfectly over a pitch-black background without any white ghosting or artifacts.
+> - **Calendar Integration**: Added robust support for integrating Home Assistant calendar events via MQTT. The calendar layout is highly optimized to save space, and the time is displayed vertically.
+> - **Emoji & Multiline Support**: Built-in, lightweight UTF-8 text rendering engine that converts multi-byte Unicode strings to CP437, natively supporting German umlauts (Ä, Ö, Ü). Includes a custom 8x8 pixel-art engine that draws native emojis (e.g. ❤️, ⚠️, 🗑️, ☀️, ☁️) for calendar and HA messages. Send messages with `\n` to automatically wrap them onto multiple lines which then scroll elegantly across the screen **line by line** for improved readability.
 > - **Localization & Time Formats**: Added German language support and a 12/24-hour time format toggle.
 > - **Performance Enhancements**: Various performance optimizations across the UI and system.
 
@@ -40,12 +41,14 @@ control it from the **clock's own web dashboard** on your WiFi, or **Home Assist
 - **Clock + weather** — NTP time and Open-Meteo weather (no API key), with an
   animated ambient scene and automatic night dimming.
 - **GIFs** — a default pack is embedded and seeded to flash on first boot;
-  upload your own. Any `c_*.gif` joins a "character pack" that makes random
+  upload your own (storage capacity up to ~300 GIFs). The dashboard shows **animated visual previews** of every uploaded GIF. Any `c_*.gif` joins a "character pack" that makes random
   cameos.
 - **Messages** — scroll a note for a while, or pin one until you stop it.
 - **Special days** — give a date a **type** (`custom` → fireworks, `birthday` →
   cake + confetti) and a message; at midnight the clock runs that themed
   celebration all day. Add them from the dashboard.
+- **Customizable Colors** — independently change the color of the clock's hours, minutes, colon, seconds, date, temperature, **calendar time**, and **calendar text** natively from the web dashboard.
+- **Live Status Tracking & System Overview** — the web dashboard polls the device in real-time, showing you exactly what the physical frame is rendering (Clock, specific GIF, or Message). It also features a real-time **System Overview** widget detailing total GIF storage capacity, free Heap (RAM), and PSRAM!
 - **Home Assistant** — optional MQTT integration with auto-discovery: brightness,
   a message box, celebrate/stop buttons, and temperature/mode sensors.
 - **Configurable**: via the on-device web dashboard.
@@ -97,6 +100,17 @@ HUB75E header layout (pin 1 is usually marked on the connector):
  CLK→ │13    14  │ ← LAT
  OE → │15    16  │ ← GND
       └──────────┘
+
+## Configuration & Tuning
+
+The firmware is designed to be highly configurable via the `config.h` file before compilation. If you are experiencing issues with colors appearing "crushed", missing, or inverted at lower brightness settings, you may need to adjust the `PANEL_COLOR_DEPTH`:
+
+- **PANEL_COLOR_DEPTH**: This defines how many bits are used per color channel (default is 8). 
+  - `8` (64 KB RAM): The maximum quality. Extremely smooth gradients, but consumes significant internal DRAM.
+  - `5` (40 KB RAM): The library default. Excellent balance of performance and color, though some panels may struggle to display dim mid-tones correctly at this depth.
+  - If you encounter memory allocation errors (ESP32 crashing on boot) when using the dashboard/WiFi, lower this value to `6` or `5`.
+
+## Home Assistant Setup
 ```
 
 **Power & grounding (important):**
@@ -151,8 +165,8 @@ shows a QR code.
 
 Scanning the panel QR joins the `DigiFrame` hotspot directly; the captive page
 then opens at `http://192.168.4.1`. Enter your WiFi there, and once the frame
-is online the same dashboard lives at `http://digiframe.local` — GIF upload,
-brightness, messages, weather location, and live logs.
+is online the same dashboard lives at `http://digiframe.local` — GIF upload and deletion,
+brightness, messages, weather location, color configuration, and live logs.
 
 ### 4. Home Assistant (MQTT)
 

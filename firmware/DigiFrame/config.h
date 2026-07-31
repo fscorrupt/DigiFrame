@@ -42,19 +42,19 @@
 #define MQTT_ENABLE true
 #define MQTT_HOST "192.168.1.56"          // broker IP/hostname, e.g. "192.168.1.10"
 #define MQTT_PORT 1883
-#define MQTT_USER "YOUR_MQTT_USER"
-#define MQTT_PASS "YOUR_MQTT_PASS"
+#define MQTT_USER ""
+#define MQTT_PASS ""
 
 /**********************  2. PIN MAP  **********************************/
 /* HUB75 (adjust freely if your wiring differs — every GPIO works,
    just avoid 0, 19/20 (USB), 26-32 (flash), 33-37 (PSRAM on N16R8),
    43/44 (UART), 45/46 (strapping). */
 #define R1_PIN 4
-#define G1_PIN 6
-#define B1_PIN 5
+#define G1_PIN 5
+#define B1_PIN 6
 #define R2_PIN 7
-#define G2_PIN 16
-#define B2_PIN 15
+#define G2_PIN 15
+#define B2_PIN 16
 #define A_PIN 18
 #define B_PIN 8
 #define C_PIN 9
@@ -76,4 +76,4 @@
      8 -> 64 KB   6 -> 48 KB   5 -> 40 KB   4 -> 32 KB
    5 keeps gradients in the ambient scene acceptable; drop to 4 only if you
    need the extra 8 KB more than you need smooth colour. */
-#define PANEL_COLOR_DEPTH 5
+#define PANEL_COLOR_DEPTH 8

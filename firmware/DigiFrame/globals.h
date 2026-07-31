@@ -32,7 +32,8 @@ volatile bool mqttConfigDirty = false;  // set by web/BLE (core 1), applied by m
 volatile bool weatherNow   = false;  // web handler asks for an immediate refetch
 bool          portalActive = false;  // setup hotspot + captive portal active
 volatile bool wifiRetryNow = false;  // web handler asks for an immediate STA (re)connect
-bool          swapColors   = false;  // swap G and B lines
+int           colorOrder   = 0;      // 0=RGB, 1=RBG (swap G↔B), 2=GRB, 3=GBR, 4=BRG, 5=BGR
+#define swapColors (colorOrder == 1)   // legacy alias: true = swap G and B lines (colorOrder 1)
 volatile bool isNightMode  = false;  // updated once per second in loop()
 
 uint8_t       cfgNightStart = 0;     // 0-23 (default 00:00)
@@ -142,8 +143,52 @@ void weatherTask(void *pv) {
 }
 
 /**********************  4. COLORS  ***********************************/
-#define C_TIME   dma->color565(255, 179, 222)   // pastel pink
-#define C_TEMP   dma->color565(173, 216, 255)   // pastel blue
-#define C_DATE   dma->color565(200, 190, 255)   // lavender
+struct ThemeColors {
+  String hourHex = "#ffb3de";
+  String minHex = "#ffb3de";
+  String colonHex = "#ffb3de";
+  String secHex = "#ffb3de";
+  String dateHex = "#c8beff";
+  String tempHex = "#add8ff";
+  String calTimeHex = "#ffffff";
+  String calTextHex = "#ffffff";
+  
+  uint16_t hour = 0;
+  uint16_t minute = 0;
+  uint16_t colon = 0;
+  uint16_t seconds = 0;
+  uint16_t date = 0;
+  uint16_t temp = 0;
+  uint16_t calTime = 0;
+  uint16_t calText = 0;
+};
+ThemeColors theme;
+
+uint16_t hexToRGB565(String hex) {
+  if (hex.startsWith("#")) hex = hex.substring(1);
+  long num = strtol(hex.c_str(), NULL, 16);
+  uint8_t r = num >> 16;
+  uint8_t g = (num >> 8) & 0xFF;
+  uint8_t b = num & 0xFF;
+  // dma->color565 might crash if called before dma is initialized
+  // safe fallback if dma is nullptr
+  if (dma) return dma->color565(r, g, b);
+  return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
+}
+
+void applyThemeColors() {
+  theme.hour = hexToRGB565(theme.hourHex);
+  theme.minute = hexToRGB565(theme.minHex);
+  theme.colon = hexToRGB565(theme.colonHex);
+  theme.seconds = hexToRGB565(theme.secHex);
+  theme.date = hexToRGB565(theme.dateHex);
+  theme.temp = hexToRGB565(theme.tempHex);
+  theme.calTime = hexToRGB565(theme.calTimeHex);
+  theme.calText = hexToRGB565(theme.calTextHex);
+}
+
+#define C_TIME   theme.hour          // fallback for legacy code
+#define C_TEMP   theme.temp
+#define C_DATE   theme.date
 #define C_MSG    dma->color565(255, 210, 150)   // warm peach
 #define C_ACCENT dma->color565(255,  80, 120)    // neutral highlight (seconds head, sparkles)

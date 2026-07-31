@@ -1,5 +1,5 @@
-/* DigiFrame — clock face + ambient scene (sprites, couple, fireworks, renderClock) */
 #pragma once
+#include <Fonts/TomThumb.h>
 
 /**********************  8. CLOCK FACE + AMBIENT SCENE  ***************/
 /* The middle of the screen (rows 10-20) is a living scene that changes
@@ -501,6 +501,88 @@ void drawCakeAndCat(uint32_t f) {
     drawSpark(cakeX + 3, BOT - 18, C_ACCENT);   // sparkle over cake
 }
 
+/* ---------- calendar overlay: overlays upcoming events on top of the ambient scene 
+   (rows 19-40, just below the clock). No background block so it looks integrated.
+   Only displays events for TODAY. ---------- */
+void drawCalendarEventsOnScene(uint32_t f) {
+  const int TOP = 19;
+  dma->setTextSize(1);
+  dma->setTextWrap(false);
+
+  // Collect up to 3 upcoming events for TODAY
+  struct UpEv { String msg; String time; };
+  UpEv upcoming[3];
+  int found = 0;
+
+  time_t now = time(nullptr);
+  struct tm tmp;
+  localtime_r(&now, &tmp);
+  char iso[12];
+  snprintf(iso, sizeof(iso), "%04d-%02d-%02d",
+           tmp.tm_year + 1900, tmp.tm_mon + 1, tmp.tm_mday);
+  String isoStr(iso);
+
+  for (int i = 0; i < numCalEvents && found < 3; i++) {
+    if (calEvents[i].date == isoStr) {
+      upcoming[found] = { calEvents[i].message, calEvents[i].time };
+      found++;
+    }
+  }
+
+  if (found == 0) return;
+
+  // Layout: evenly space up to 3 rows starting at TOP+1
+  int yStarts[3];
+  if (found == 1) { yStarts[0] = TOP + 3; }
+  else if (found == 2) { yStarts[0] = TOP + 1; yStarts[1] = TOP + 9; }
+  else { yStarts[0] = TOP + 1; yStarts[1] = TOP + 9; yStarts[2] = TOP + 17; }
+
+  for (int i = 0; i < found; i++) {
+    uint16_t txtColor = dma->color565(255, 190, 60);
+
+    String &name = upcoming[i].msg;
+    String &timeStr = upcoming[i].time;
+    
+    int msgStartX = 1;
+    if (timeStr.length() > 0) {
+        // Draw time using tiny 3x5 font
+        dma->setFont(&TomThumb);
+        dma->setTextColor(theme.calTime);
+        // TomThumb draws from the bottom-left baseline, so y needs +5
+        dma->setCursor(1, yStarts[i] + 5);
+        dma->print(timeStr);
+        dma->setFont(); // Reset to default font
+        
+        // Advance msgStartX past the time string
+        msgStartX = 1 + (timeStr.length() * 4) + 2;
+    }
+
+    int namePx   = PANEL_W - msgStartX;
+    dma->setTextColor(theme.calText);
+    
+    if (getUTF8TextWidth(name, 1) <= namePx) {
+      drawUTF8Text(msgStartX, yStarts[i], name, 1);
+    } else {
+      int excess     = getUTF8TextWidth(name, 1) - namePx;
+      int pauseFrames = 20;                  
+      int totalRange  = excess + pauseFrames * 2;
+      int tick = (int)((f / 3 + i * 30) % (uint32_t)totalRange); 
+      int scroll = constrain(tick - pauseFrames, 0, excess);
+      
+      drawUTF8Text(msgStartX - scroll, yStarts[i], name, 1);
+      dma->fillRect(0, yStarts[i], msgStartX, 8, 0); // blank out left edge bleed
+      if (timeStr.length() > 0) {
+        // Redraw time on top
+        dma->setFont(&TomThumb);
+        dma->setTextColor(theme.calTime);
+        dma->setCursor(1, yStarts[i] + 5);
+        dma->print(timeStr);
+        dma->setFont();
+      }
+    }
+  }
+}
+
 void drawAmbient() {
   const int TOP = 19, BOT = 45;                 // scene strip rows
 
@@ -804,17 +886,18 @@ void renderClock() {
   if (xoff < 0) xoff = 0;
   dma->setTextWrap(false);
   dma->setTextSize(2);
-  dma->setTextColor(C_TIME);
+  dma->setTextColor(theme.hour);
   dma->setCursor(xoff, 2);
   dma->print(hs);
-  uint16_t colonC = (tmNow.tm_sec % 2) ? C_TIME : dma->color565(120, 70, 100);
+  uint16_t colonC = (tmNow.tm_sec % 2) ? theme.colon : dma->color565(120, 70, 100);
   dma->fillRect(xoff + hw + 1, 5, 2, 2, colonC);
   dma->fillRect(xoff + hw + 1, 12, 2, 2, colonC);
   dma->setCursor(xoff + hw + COLON_W, 2);
+  dma->setTextColor(theme.minute);
   dma->print(msb);
   if (!use24h) {
     dma->setTextSize(1);
-    dma->setTextColor(C_DATE);
+    dma->setTextColor(theme.date);
     dma->setCursor(xoff + hw + COLON_W + MIN_W + gap, 10);
     dma->print(pm ? "PM" : "AM");
   }
@@ -824,11 +907,18 @@ void renderClock() {
   int secs = tmNow.tm_sec;
   if (secs > 0)
     dma->drawFastHLine(2, 17, secs, dma->color565(110, 55, 85));
-  dma->drawPixel(2 + secs, 17, ((frameNo / 3) % 2) ? C_ACCENT : C_TIME);
+  dma->drawPixel(2 + secs, 17, ((frameNo / 3) % 2) ? C_ACCENT : theme.seconds);
 
-  /* --- living scene (rows 20-44) --- */
+  /* --- scene / calendar overlay (rows 19-44) ---
+     Ambient scene is drawn normally. Then, if HA calendar events exist, 
+     they are overlaid directly as transparent text near the top. */
   if (!isNightMode) {
-    drawAmbient();
+    String calCheck;
+    if (getNextCalendarEvent(calCheck)) {
+      drawCalendarEventsOnScene(frameNo);
+    } else {
+      drawAmbient();
+    }
   }
 
   /* --- footer: date/temp block and the potted plant share the same
@@ -838,48 +928,24 @@ void renderClock() {
     {"SON","MON","DIE","MIT","DON","FRE","SAM"}
   };
   
-  String calEventName;
-  bool hasCal = getNextCalendarEvent(calEventName);
-  
-  // If we have a calendar event, show it every 10 seconds for 4 seconds
-  if (hasCal && ((millis() / 1000) % 10) >= 6) {
-    dma->setTextSize(1);
-    dma->setTextColor(C_ACCENT);
-    dma->setCursor(2, 47);
-    dma->print("EVENT:");
-    dma->setTextColor(dma->color565(200, 200, 200));
-    dma->setCursor(2, 55);
-    
-    // Simple scrolling for long calendar names
-    int maxLen = 9;
-    if (calEventName.length() > maxLen) {
-      int scrollMax = calEventName.length() - maxLen;
-      int scrollStep = (millis() / 500) % (scrollMax + 4);
-      if (scrollStep > scrollMax) scrollStep = scrollMax; // pause at end
-      dma->print(calEventName.substring(scrollStep, scrollStep + maxLen));
-    } else {
-      dma->print(calEventName);
-    }
+  // Always show Date & Temp footer
+  snprintf(buf, sizeof(buf), "%s %d", DOW[cfgLang == 1 ? 1 : 0][tmNow.tm_wday], tmNow.tm_mday);
+  dma->setTextSize(1);
+  dma->setTextColor(theme.date);
+  dma->setCursor(2, 47);
+  dma->print(buf);
+  dma->setTextColor(theme.temp);
+  dma->setCursor(2, 55);
+  if (!isnan(wTemp)) {
+    snprintf(buf, sizeof(buf), "%dC", (int)round(wTemp));
   } else {
-    // Normal Date & Temp footer
-    snprintf(buf, sizeof(buf), "%s %d", DOW[cfgLang == 1 ? 1 : 0][tmNow.tm_wday], tmNow.tm_mday);
-    dma->setTextSize(1);
-    dma->setTextColor(C_DATE);
-    dma->setCursor(2, 47);
-    dma->print(buf);
-    dma->setTextColor(C_TEMP);
-    dma->setCursor(2, 55);
-    if (!isnan(wTemp)) {
-      snprintf(buf, sizeof(buf), "%dC", (int)round(wTemp));
-    } else {
-      strlcpy(buf, "--C", sizeof(buf));
-    }
-    dma->print(buf);
-    if (!isNightMode) {
-      drawWeatherIconAnim(24, 54, frameNo);   // animated icon, clear of the date row
-    }
+    strlcpy(buf, "--C", sizeof(buf));
   }
-  
+  dma->print(buf);
+  if (!isNightMode) {
+    drawWeatherIconAnim(24, 54, frameNo);   // animated icon, clear of the date row
+  }
+
   if (!isNightMode) {
     drawPottedPlant(41, 59, frameNo);       // wider pot fills the right column edge-to-edge
   }

@@ -14,9 +14,9 @@
 
 void ctlSendMsg(const String &text, bool pin) {
   String t = text; t.trim();
+  t.replace("\\n", "\n");
   if (!t.length()) return;
   scrollText = t;
-  scrollText.toUpperCase();
   scrollX = PANEL_W;
   closeGif();
   mode      = MODE_MSG;
@@ -37,6 +37,10 @@ bool ctlPlayGif(const String &name) {          // name = "foo.gif" or "/foo.gif"
 
 bool ctlDelGif(const String &name) {
   String p = name.startsWith("/") ? name : "/" + name;
+  if (currentGifPath == p) {
+    closeGif();
+    mode = MODE_CLOCK;
+  }
   return LittleFS.remove(p);
 }
 
@@ -56,10 +60,11 @@ bool ctlAddEvent(const String &date, const String &type, const String &message) 
   String d = date; d.trim();
   if (d.length() != 5 || d[2] != '-') return false;       // "MM-DD"
   String t = (type == "birthday") ? "birthday" : "custom";
+  String m = message; m.trim(); m.replace("\\n", "\n");
   for (int i = 0; i < numEvents; i++)                     // update an existing date in place
-    if (events[i].date == d) { events[i] = { d, t, message }; saveEvents(); logLine("event updated " + d); return true; }
+    if (events[i].date == d) { events[i] = { d, t, m }; saveEvents(); logLine("event updated " + d); return true; }
   if (numEvents >= MAX_EVENTS) return false;
-  events[numEvents++] = { d, t, message };
+  events[numEvents++] = { d, t, m };
   saveEvents();
   logLine("event added " + d + " (" + t + ")");
   return true;

@@ -10,20 +10,29 @@ const char DASH_HTML[] PROGMEM = R"HTML(<!doctype html><html><head>
 <meta name=viewport content="width=device-width,initial-scale=1"><title>DigiFrame</title>
 <style>body{font-family:system-ui;background:#141420;color:#eee;max-width:420px;margin:auto;padding:16px}
 h1{color:#ffb3de;font-size:22px}fieldset{border:1px solid #333;border-radius:10px;margin:12px 0;padding:12px}
-legend{color:#aab}button,input{border-radius:8px;border:1px solid #444;background:#222;color:#eee;padding:8px;margin:3px 2px}
+input,select,button,canvas{box-sizing:border-box;margin-bottom:8px;padding:6px;border-radius:4px;border:1px solid #445;background:#223;color:#eef}
+input[type=color]{padding:0;height:28px;background:none;border:none;cursor:pointer;width:40px;}
 button{cursor:pointer;background:#ff5078;border:0}li{margin:6px 0;list-style:none}ul{padding:0;margin:6px 0}
 .st{font-size:12px;color:#aab;margin-top:4px}</style>
 </head><body><h1>&#9200; DigiFrame</h1>
+<fieldset><legend>Currently Displaying</legend>
+<div id=curr style="font-size:14px;color:#4f4;font-weight:bold;margin-bottom:4px">Clock</div>
+</fieldset>
 <fieldset><legend>Send a message</legend>
 <input id=m placeholder="Hello!" style="width:64%">
-<button onclick="api('msg','t='+encodeURIComponent(m.value))">Send</button></fieldset>
+<button onclick="setMsg()">Send</button>
+<div class=st>Use \n for new lines (scrolls line by line)</div></fieldset>
 <fieldset><legend>Brightness</legend>
 <input type=range min=1 max=255 value=100 id=b style="width:100%"
  onchange="api('brightness','v='+b.value)"></fieldset>
 <fieldset><legend>GIFs (c_* = character pack)</legend><ul id=l></ul>
 <input type=file id=f accept=.gif><br><input id=n placeholder="name" style="width:100px">
 <label><input type=checkbox id=p> character pack</label>
-<button onclick=up()>Upload</button></fieldset>
+<button onclick=up()>Upload</button>
+</fieldset>
+<fieldset><legend>System Overview</legend>
+<div id=sys class=st>Loading...</div>
+</fieldset>
 <fieldset><legend>Random cameo every</legend>
 <input id=iv type=number min=0 value=20 style="width:60px"> min (0 = off)
 </fieldset>
@@ -46,11 +55,26 @@ button{cursor:pointer;background:#ff5078;border:0}li{margin:6px 0;list-style:non
 <fieldset><legend>Time zone</legend>
 <input id=tz type=number step=0.25 placeholder="UTC offset (hours)" style="width:55%">
 <div class=st>e.g. 5.5 for IST, -8 for PST, 5.75 for Nepal &mdash; clock updates right away</div></fieldset>
+<fieldset><legend>Display Colors &amp; Preview</legend>
+<div style="display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start;">
+  <div style="display:grid;grid-template-columns:auto auto auto auto;gap:8px 12px;align-items:center;">
+    <div style="text-align:right">Hour:</div><input type=color id=cH value="#ffffff">
+    <div style="text-align:right">Min:</div><input type=color id=cM value="#ffffff">
+    <div style="text-align:right">Colon:</div><input type=color id=cC value="#888888">
+    <div style="text-align:right">Secs:</div><input type=color id=cS value="#ff5078">
+    <div style="text-align:right">Date:</div><input type=color id=cD value="#888888">
+    <div style="text-align:right">Temp:</div><input type=color id=cT value="#44aaff">
+    <div style="text-align:right">Cal Time:</div><input type=color id=cCtm value="#ffcc00">
+    <div style="text-align:right">Cal Text:</div><input type=color id=cCtx value="#ffffff">
+  </div>
+  </div>
+</div>
+</fieldset>
 <fieldset><legend>Display &amp; Time Format</legend>
 <select id=lang><option value=0>English</option><option value=1>Deutsch</option></select>
 <select id=tfm><option value=0>12-hour</option><option value=1>24-hour</option></select>
 <select id=rot><option value=0>0 deg</option><option value=90>90 deg</option><option value=180>180 deg</option><option value=270>270 deg</option></select>
-<br><label style="margin-top:8px;display:block"><input type=checkbox id=swc> Swap Green/Blue colors (fixes pink sun, reboots frame)</label>
+<br><label style="margin-top:8px;display:block">Color order (fixes wrong colors, reboots): <select id=cord><option value=0>RGB (default)</option><option value=1>RBG (swap G⇔B)</option><option value=2>GRB</option><option value=3>GBR</option><option value=4>BRG</option><option value=5>BGR</option></select></label>
 </fieldset>
 <fieldset><legend>Night Mode (Dim &amp; Minimal)</legend>
 <div style="margin-bottom:8px">
@@ -89,9 +113,32 @@ button{cursor:pointer;background:#ff5078;border:0}li{margin:6px 0;list-style:non
 <script>
 async function api(ep,body){await fetch('/api/'+ep,{method:'POST',
  headers:{'Content-Type':'application/x-www-form-urlencoded'},body:body||''});await load();await loadLogs();await loadCfg();await loadEv()}
-async function load(){try{let r=await fetch('/api/list'),j=await r.json();
- l.innerHTML=j.map(g=>`<li>${g} <button onclick="api('play','g=${g}')">&#9654;</button>
- <button onclick="api('del','g=${g}')">&#128465;</button></li>`).join('')}catch(e){}}
+ async function load(){try{
+  let r=await fetch('/api/list'),j=await r.json();
+  let sr=await fetch('/api/state'),st=await sr.json();
+  let md = ['Clock','Message','GIF','Celebration','Test','Setup'][st.mode] || 'Unknown';
+  let curtxt = md;
+  if (st.mode == 1 || st.mode == 3) curtxt += ': ' + st.msg;
+  if (st.mode == 2 || st.mode == 3) {
+    let gifname = (st.gif || '').replace(/^\//, '');
+    if (gifname) curtxt += ' (' + gifname + ')';
+  }
+  document.getElementById('curr').textContent = curtxt;
+  
+  let r2=await fetch('/api/sysinfo');
+  if(r2.ok) {
+    let s=await r2.json();
+    let fs = (s.fsUsed/1024/1024).toFixed(2) + ' MB / ' + (s.fsTotal/1024/1024).toFixed(2) + ' MB';
+    let mem = (s.heapFree/1024).toFixed(1) + ' KB free';
+    let psr = (s.psramFree/1024/1024).toFixed(2) + ' MB free';
+    document.getElementById('sys').innerHTML = '<b>Storage:</b> ' + fs + '<br><b>Heap:</b> ' + mem + '<br><b>PSRAM:</b> ' + psr;
+  }
+  
+  l.innerHTML=j.map(g=>{
+    let isPlaying = (st.mode == 2 && st.gif == ('/'+g)) ? ' style="color:#4f4;font-weight:bold"' : '';
+    return `<li${isPlaying}><img src="/gifs/${encodeURIComponent(g)}" style="width:32px;height:32px;vertical-align:middle;margin-right:8px;image-rendering:pixelated;border:1px solid #445;border-radius:4px"> ${g} <button onclick="api('play','g=${encodeURIComponent(g)}')">&#9654; Play</button>
+  <button onclick="api('del','g=${encodeURIComponent(g)}')">&#128465; Delete</button></li>`
+  }).join('')}catch(e){}}
 async function up(){if(!f.files[0])return;let fd=new FormData();fd.append('file',f.files[0]);
  await fetch('/api/upload?name='+encodeURIComponent(n.value)+'&pack='+(p.checked?'1':'0'),
  {method:'POST',body:fd});load()}
@@ -110,10 +157,13 @@ function ota(){if(!fw.files[0]){ost.textContent='pick a .bin first';return}
  if(j.lat) la.value=j.lat; if(j.lon) lo.value=j.lon;
  tfm.value=j['24h']?'1':'0'; rot.value=j.rot; lang.value=j.lang;
  mqe.checked=!!j.mqttEn; if(j.mqttHost) mqh.value=j.mqttHost; if(j.mqttPort) mqp.value=j.mqttPort; if(j.mqttUser) mqu.value=j.mqttUser;
- tz.value=j.tz/3600; swc.checked=!!j.swap;
+ tz.value=j.tz/3600; cord.value=j.cord||0;
  if(j.ns!==undefined)ns.value=j.ns; if(j.ne!==undefined)ne.value=j.ne;
  if(j.nd!==undefined)for(let i=0;i<7;i++)document.getElementById('nd'+i).checked=(j.nd&(1<<i));
  if(j.no!==undefined)nmo.value=j.no;
+ if(j.cH) cH.value=j.cH; if(j.cM) cM.value=j.cM; if(j.cC) cC.value=j.cC;
+ if(j.cS) cS.value=j.cS; if(j.cD) cD.value=j.cD; if(j.cT) cT.value=j.cT;
+ if(j.cCtx) cCtx.value=j.cCtx; if(j.cCtm) cCtm.value=j.cCtm;
 }catch(e){}}
 async function loadEv(){try{let r=await fetch('/api/events'),j=await r.json();
  ev.innerHTML=j.length?j.map(e=>`<li>${e.date} [${e.type}] ${e.message} <button onclick="delEv('${e.date}')">&#128465;</button></li>`).join(''):'<li class=st>none yet</li>'}catch(e){}}
@@ -143,12 +193,20 @@ async function saveAll() {
     p.append("mqp", document.getElementById('mqp').value || 1883);
     p.append("mqu", document.getElementById('mqu').value);
     p.append("mqw", document.getElementById('mqw').value);
-    p.append("swc", document.getElementById('swc').checked ? '1' : '0');
+    p.append("cord", document.getElementById('cord').value);
     p.append("ns", document.getElementById('ns').value || 0);
     p.append("ne", document.getElementById('ne').value || 7);
     p.append("no", document.getElementById('nmo').value || 0);
     let mask = 0; for(let i=0;i<7;i++)if(document.getElementById('nd'+i).checked) mask|=(1<<i);
     p.append("nd", mask);
+    p.append("cH", document.getElementById('cH').value);
+    p.append("cM", document.getElementById('cM').value);
+    p.append("cC", document.getElementById('cC').value);
+    p.append("cS", document.getElementById('cS').value);
+    p.append("cD", document.getElementById('cD').value);
+    p.append("cT", document.getElementById('cT').value);
+    p.append("cCtx", document.getElementById('cCtx').value);
+    p.append("cCtm", document.getElementById('cCtm').value);
     await fetch('/api/saveall', { method:'POST', body: p });
     savSt.textContent = "Saved successfully!"; savSt.style.color = "#0f0";
     setTimeout(()=>savSt.textContent="", 3000);
@@ -156,7 +214,10 @@ async function saveAll() {
   } catch(e) { savSt.textContent = "Error saving!"; savSt.style.color = "red"; }
 }
 async function pollLogs(){await loadLogs();setTimeout(pollLogs,2000)}
-async function init(){await load();await loadCfg();await loadEv();pollLogs()}init();</script></body></html>)HTML";
+async function init(){
+load();loadLogs();loadCfg();loadEv();
+setInterval(()=>{loadLogs();load();},10000);
+}init();</script></body></html>)HTML";
 
 void handleUpload() {
   HTTPUpload &up = web.upload();
@@ -266,6 +327,29 @@ void setupWeb() {
   web.on("/api/list", HTTP_GET, []() {
     web.send(200, "application/json", ctlListGifsJson());
   });
+  web.on("/api/sysinfo", HTTP_GET, []() {
+    JsonDocument doc;
+    doc["fsTotal"] = LittleFS.totalBytes();
+    doc["fsUsed"] = LittleFS.usedBytes();
+    doc["heapFree"] = ESP.getFreeHeap();
+    doc["heapSize"] = ESP.getHeapSize();
+    doc["psramFree"] = ESP.getFreePsram();
+    doc["psramSize"] = ESP.getPsramSize();
+    String out; serializeJson(doc, out);
+    web.send(200, "application/json", out);
+  });
+  web.on("/api/state", HTTP_GET, []() {
+    JsonDocument doc;
+    doc["mode"] = (int)mode;
+    if (mode == MODE_MSG) doc["msg"] = scrollText;
+    else if (mode == MODE_GIF) doc["gif"] = currentGifPath;
+    else if (mode == MODE_CELEBRATE) {
+      doc["msg"] = celebMsg;
+      if (gifOpen) doc["gif"] = currentGifPath;
+    }
+    String out; serializeJson(doc, out);
+    web.send(200, "application/json", out);
+  });
   web.on("/api/msg", HTTP_POST, []() {
     ctlSendMsg(web.arg("t"), false);
     web.send(200, "text/plain", "ok");
@@ -352,11 +436,20 @@ void setupWeb() {
   web.on("/api/config", HTTP_GET, []() {
     String cfg = ctlStatusJson();
     // Inject extra config into the JSON
-    cfg.replace("}", ",\"swap\":" + String(swapColors ? "true" : "false") + 
+    cfg.replace("}", ",\"cord\":" + String(colorOrder) + 
                      ",\"ns\":" + String(cfgNightStart) + 
                      ",\"ne\":" + String(cfgNightEnd) + 
                      ",\"nd\":" + String(cfgNightDays) + 
-                     ",\"no\":" + String(cfgNightOverride) + "}");
+                     ",\"no\":" + String(cfgNightOverride) + 
+                     ",\"cH\":\"" + theme.hourHex + "\"" +
+                     ",\"cM\":\"" + theme.minHex + "\"" +
+                     ",\"cC\":\"" + theme.colonHex + "\"" +
+                     ",\"cS\":\"" + theme.secHex + "\"" +
+                     ",\"cD\":\"" + theme.dateHex + "\"" +
+                     ",\"cT\":\"" + theme.tempHex + "\"" +
+                     ",\"cCtx\":\"" + theme.calTextHex + "\"" +
+                     ",\"cCtm\":\"" + theme.calTimeHex + "\"" +
+                     "}");
     web.send(200, "application/json", cfg);
   });
   /* ---- save WiFi creds; wifi_manager picks up wifiRetryNow in loop() ---- */
@@ -385,10 +478,10 @@ void setupWeb() {
     if (web.hasArg("tz")) ctlSetTz(web.arg("tz").toInt());
     if (web.hasArg("mqh")) ctlSetMqtt(web.arg("mqe")=="1", web.arg("mqh"), web.arg("mqp").toInt(), web.arg("mqu"), web.arg("mqw"));
     bool doReboot = false;
-    if (web.hasArg("swc")) {
-       bool newSwc = web.arg("swc") == "1";
-       if (swapColors != newSwc) {
-           swapColors = newSwc;
+    if (web.hasArg("cord")) {
+       int newCord = constrain(web.arg("cord").toInt(), 0, 5);
+       if (colorOrder != newCord) {
+           colorOrder = newCord;
            doReboot = true;
        }
     }
@@ -396,6 +489,17 @@ void setupWeb() {
     if (web.hasArg("ne")) cfgNightEnd = web.arg("ne").toInt();
     if (web.hasArg("nd")) cfgNightDays = web.arg("nd").toInt();
     if (web.hasArg("no")) cfgNightOverride = web.arg("no").toInt();
+    
+    if (web.hasArg("cH")) theme.hourHex = web.arg("cH");
+    if (web.hasArg("cM")) theme.minHex = web.arg("cM");
+    if (web.hasArg("cC")) theme.colonHex = web.arg("cC");
+    if (web.hasArg("cS")) theme.secHex = web.arg("cS");
+    if (web.hasArg("cD")) theme.dateHex = web.arg("cD");
+    if (web.hasArg("cT")) theme.tempHex = web.arg("cT");
+    if (web.hasArg("cCtx")) theme.calTextHex = web.arg("cCtx");
+    if (web.hasArg("cCtm")) theme.calTimeHex = web.arg("cCtm");
+    applyThemeColors();
+    
     saveConfig();
     
     web.send(200, "text/plain", "ok");
@@ -411,5 +515,8 @@ void setupWeb() {
       web.send(404, "text/plain", "not found");
     }
   });
+  
+  web.serveStatic("/gifs/", LittleFS, "/");
+  
   web.begin();
 }

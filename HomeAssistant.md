@@ -19,7 +19,7 @@ rest_command:
         {% for event in events %}
           {
             "d": "{{ as_timestamp(event.start) | timestamp_custom('%Y-%m-%d') }}",
-            "m": "{{ event.summary }}"
+            "m": "{{ as_timestamp(event.start) | timestamp_custom('%H:%M') }} - {{ event.summary }}"
           }
           {% if not loop.last %},{% endif %}
         {% endfor %}
