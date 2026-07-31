@@ -89,6 +89,7 @@ void saveCalendar() {
   for (int i = 0; i < numCalEvents; i++) {
     JsonObject o = arr.add<JsonObject>();
     o["d"] = calEvents[i].date;
+    if (calEvents[i].time.length() > 0) o["t"] = calEvents[i].time;
     o["m"] = calEvents[i].message;
   }
   File f = LittleFS.open("/calendar.json", "w");
@@ -106,6 +107,7 @@ void loadCalendar() {
       if (numCalEvents >= MAX_CALENDAR) break;
       calEvents[numCalEvents++] = {
         o["d"].as<String>(),
+        o["t"].is<const char*>() ? o["t"].as<String>() : String(""),
         o["m"].as<String>()
       };
     }
@@ -119,7 +121,11 @@ void setCalendarFromJson(const String &jsonStr) {
     numCalEvents = 0;
     for (JsonObject o : doc.as<JsonArray>()) {
       if (numCalEvents >= MAX_CALENDAR) break;
-      calEvents[numCalEvents++] = { o["d"].as<String>(), o["t"].as<String>(), o["m"].as<String>() };
+      calEvents[numCalEvents++] = { 
+        o["d"].as<String>(), 
+        o["t"].is<const char*>() ? o["t"].as<String>() : String(""), 
+        o["m"].as<String>() 
+      };
     }
     saveCalendar();
   }

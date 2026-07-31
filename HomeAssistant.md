@@ -19,7 +19,8 @@ rest_command:
         {% for event in events %}
           {
             "d": "{{ as_timestamp(event.start) | timestamp_custom('%Y-%m-%d') }}",
-            "m": "{{ as_timestamp(event.start) | timestamp_custom('%H:%M') }} - {{ event.summary }}"
+            "t": "{{ as_timestamp(event.start) | timestamp_custom('%H:%M') }}",
+            "m": "{{ event.summary }}"
           }
           {% if not loop.last %},{% endif %}
         {% endfor %}
