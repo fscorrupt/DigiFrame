@@ -6,6 +6,7 @@ uint32_t lastScrollAt = 0;
 int currentScrollLine = 0;
 String lastMeasuredStr = "";
 String lines[20];
+int lineWidths[20];
 int totalLines = 0;
 int measuredW = 0;
 int scrollTextSize = 2;
@@ -39,8 +40,12 @@ bool renderScroll(uint16_t color) {
       scrollMaxLines = 7;
     }
     
+    for (int i = 0; i < totalLines; i++) {
+      lineWidths[i] = getUTF8TextWidth(lines[i], scrollTextSize);
+    }
+    
     if (totalLines == 0) return true;
-    measuredW = getUTF8TextWidth(lines[0], scrollTextSize);
+    measuredW = lineWidths[0];
   }
   
   if (totalLines == 0) return true;
@@ -62,7 +67,13 @@ bool renderScroll(uint16_t color) {
   for (int i = 0; i < linesInPage; i++) {
     int globalLineIdx = pageIdx * scrollMaxLines + i;
     int y = startY + i * (lineHeight + lineSpacing);
-    int x = (globalLineIdx == currentScrollLine) ? scrollX : 0;
+    int lineW = lineWidths[globalLineIdx];
+    int x;
+    if (lineW <= PANEL_W) {
+      x = (PANEL_W - lineW) / 2;
+    } else {
+      x = (globalLineIdx == currentScrollLine) ? scrollX : 0;
+    }
     drawUTF8Text(x, y, lines[globalLineIdx], scrollTextSize);
   }
   
@@ -76,7 +87,7 @@ bool renderScroll(uint16_t color) {
     if (currentScrollLine >= totalLines) {
       currentScrollLine = 0;
     }
-    measuredW = getUTF8TextWidth(lines[currentScrollLine], scrollTextSize);
+    measuredW = lineWidths[currentScrollLine];
   }
   return true;
 }
