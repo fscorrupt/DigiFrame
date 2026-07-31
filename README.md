@@ -10,8 +10,10 @@ control it from the **clock's own web dashboard** on your WiFi, or **Home Assist
 > - **Night Mode Added**: A new Night Mode has been added which hides animations and dims the screen. It can be toggled via Home Assistant (MQTT).
 > - **Color & GIF Rendering Fixes**: Fixed general GIF colors by swapping `AnimatedGIF` to Big Endian mode, and adapted the default pin configuration for an RGB matrix panel. Completely overhauled how transparent GIFs are composited, ensuring transparent pixels render perfectly over a pitch-black background without any white ghosting or artifacts.
 > - **Calendar Integration**: Added robust support for integrating Home Assistant calendar events via MQTT. The calendar layout is highly optimized to save space, and the time is displayed vertically.
-> - **Emoji & Multiline Support**: Built-in, lightweight UTF-8 text rendering engine that converts multi-byte Unicode strings to CP437, natively supporting German umlauts (Ä, Ö, Ü). Includes a custom 8x8 pixel-art engine that draws native emojis (e.g. ❤️, ⚠️, 🗑️, ☀️, ☁️) for calendar and HA messages. Send messages with `\n` to automatically wrap them onto multiple lines which then scroll elegantly across the screen **line by line** for improved readability.
+> - **Emoji & Multiline Support**: Built-in, lightweight UTF-8 text rendering engine that converts multi-byte Unicode strings to CP437, natively supporting German umlauts (Ä, Ö, Ü). Includes a custom 8x8 pixel-art engine that draws native emojis (e.g. ❤️, ⚠️, 🗑️, ☀️, ☁️) for calendar and HA messages. Send messages with `\n` to automatically wrap them onto multiple lines. The scrolling engine supports dynamic font scaling and intelligent pagination for paragraphs, displaying long messages elegantly while scrolling one line at a time for readability.
 > - **Localization & Time Formats**: Added German language support and a 12/24-hour time format toggle.
+> - **Hardware Configurability**: Natively rotate the panel orientation (0/90/180/270 degrees) and adjust the RGB color order from the web dashboard to fix panel-specific rendering issues without needing to recompile.
+> - **Live System Overview**: The web dashboard now features a real-time System Overview widget detailing total GIF storage capacity, free Heap (RAM), PSRAM, and internal device temperature.
 > - **Performance Enhancements**: Various performance optimizations across the UI and system.
 
 <p align="center">
@@ -50,10 +52,11 @@ control it from the **clock's own web dashboard** on your WiFi, or **Home Assist
 - **Special days** — give a date a **type** (`custom` → fireworks, `birthday` →
   cake + confetti) and a message; at midnight the clock runs that themed
   celebration all day. Add them from the dashboard.
-- **Customizable Colors** — independently change the color of the clock's hours, minutes, colon, seconds, date, temperature, **calendar time**, and **calendar text** natively from the web dashboard.
-- **Live Status Tracking & System Overview** — the web dashboard polls the device in real-time, showing you exactly what the physical frame is rendering (Clock, specific GIF, or Message). It also features a real-time **System Overview** widget detailing total GIF storage capacity, free Heap (RAM), and PSRAM!
+- **Customizable Colors** — independently change the color of the clock's hours, minutes, colon, seconds, date, temperature, and **calendar events** natively from the web dashboard.
+- **Live Status Tracking & System Overview** — the web dashboard polls the device in real-time, showing you exactly what the physical frame is rendering (Clock, specific GIF, or Message). It also features a real-time **System Overview** widget detailing total GIF storage capacity, free Heap (RAM), PSRAM, and internal device temperature!
 - **Home Assistant** — optional MQTT integration with auto-discovery: brightness,
   a message box, celebrate/stop buttons, and temperature/mode sensors.
+- **Hardware Configurability** — natively rotate the panel orientation (0/90/180/270 degrees) and adjust the RGB color order from the web dashboard to fix panel-specific rendering issues without needing to recompile.
 - **Configurable**: via the on-device web dashboard.
 - **OTA firmware updates** from the on-device dashboard.
 

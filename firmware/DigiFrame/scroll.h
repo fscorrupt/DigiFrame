@@ -5,48 +5,66 @@
 uint32_t lastScrollAt = 0;
 int currentScrollLine = 0;
 String lastMeasuredStr = "";
-String currentLineStr = "";
+String lines[20];
+int totalLines = 0;
 int measuredW = 0;
+int scrollTextSize = 2;
+int scrollMaxLines = 3;
 
-bool renderScroll(uint16_t color) {        // returns true if a new frame was drawn
-  if (millis() - lastScrollAt < 45) return false;   // scroll speed limiter
+bool renderScroll(uint16_t color) {
+  if (millis() - lastScrollAt < 45) return false;
   lastScrollAt = millis();
   
   if (scrollText != lastMeasuredStr) {
     lastMeasuredStr = scrollText;
     currentScrollLine = 0;
     scrollX = PANEL_W;
-    currentLineStr = "";
-  }
-  
-  if (currentLineStr == "") {
-    int lineCount = 1;
+    totalLines = 0;
+    
     int startIdx = 0;
     for (int i = 0; i <= scrollText.length(); i++) {
       if (i == scrollText.length() || scrollText[i] == '\n') {
-        if (lineCount - 1 == currentScrollLine) {
-          currentLineStr = scrollText.substring(startIdx, i);
-          break;
+        if (totalLines < 20) {
+          lines[totalLines] = scrollText.substring(startIdx, i);
+          totalLines++;
         }
         startIdx = i + 1;
-        lineCount++;
       }
     }
-    if (currentLineStr == "" && currentScrollLine > 0) {
-       currentScrollLine = 0;
-       return true; // Wait for next frame to re-evaluate
+    if (totalLines <= 3) {
+      scrollTextSize = 2;
+      scrollMaxLines = 3;
+    } else {
+      scrollTextSize = 1;
+      scrollMaxLines = 7;
     }
-    measuredW = getUTF8TextWidth(currentLineStr, 2);
+    
+    if (totalLines == 0) return true;
+    measuredW = getUTF8TextWidth(lines[0], scrollTextSize);
   }
+  
+  if (totalLines == 0) return true;
 
   dma->fillScreen(0);
   dma->setTextWrap(false);
-  dma->setTextSize(2);
+  dma->setTextSize(scrollTextSize);
   dma->setTextColor(color);
   
-  // Center vertically for a single size-2 line (approx 16px high)
-  dma->setCursor(scrollX, 24);
-  drawUTF8Text(scrollX, 24, currentLineStr, 2);
+  int pageIdx = currentScrollLine / scrollMaxLines;
+  int linesInPage = totalLines - (pageIdx * scrollMaxLines);
+  if (linesInPage > scrollMaxLines) linesInPage = scrollMaxLines;
+  
+  int lineHeight = (scrollTextSize == 2) ? 16 : 8;
+  int lineSpacing = (scrollTextSize == 2) ? 2 : 1;
+  int totalH = linesInPage * lineHeight + (linesInPage - 1) * lineSpacing;
+  int startY = (64 - totalH) / 2;
+  
+  for (int i = 0; i < linesInPage; i++) {
+    int globalLineIdx = pageIdx * scrollMaxLines + i;
+    int y = startY + i * (lineHeight + lineSpacing);
+    int x = (globalLineIdx == currentScrollLine) ? scrollX : 0;
+    drawUTF8Text(x, y, lines[globalLineIdx], scrollTextSize);
+  }
   
   drawSpark(4, 54, C_ACCENT);
   drawSpark(53, 54, C_ACCENT);
@@ -55,10 +73,10 @@ bool renderScroll(uint16_t color) {        // returns true if a new frame was dr
   if (scrollX < -measuredW) {
     scrollX = PANEL_W;
     currentScrollLine++;
-    int totalLines = 1;
-    for (int i=0; i<scrollText.length(); i++) if(scrollText[i]=='\n') totalLines++;
-    if (currentScrollLine >= totalLines) currentScrollLine = 0;
-    currentLineStr = ""; // Force recalculate next frame
+    if (currentScrollLine >= totalLines) {
+      currentScrollLine = 0;
+    }
+    measuredW = getUTF8TextWidth(lines[currentScrollLine], scrollTextSize);
   }
   return true;
 }

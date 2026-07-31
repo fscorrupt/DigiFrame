@@ -558,7 +558,7 @@ void drawCalendarEventsOnScene(uint32_t f) {
     }
 
     int namePx   = PANEL_W - msgStartX;
-    dma->setTextColor(theme.calText);
+    dma->setTextColor(theme.calTime);
     
     if (getUTF8TextWidth(name, 1) <= namePx) {
       drawUTF8Text(msgStartX, yStarts[i], name, 1);
@@ -860,9 +860,7 @@ void drawWeatherBg() {
 void renderClock() {
   frameNo++;
   dma->fillScreen(0);      // safe: writing to back buffer, DMA scans front buffer
-  if (!isNightMode) {
-    drawWeatherBg();
-  }
+  drawWeatherBg();
   char buf[20];
 
   /* --- 12-hour time, visually centered: the block width adapts to a
@@ -942,9 +940,7 @@ void renderClock() {
     strlcpy(buf, "--C", sizeof(buf));
   }
   dma->print(buf);
-  if (!isNightMode) {
-    drawWeatherIconAnim(24, 54, frameNo);   // animated icon, clear of the date row
-  }
+  drawWeatherIconAnim(24, 54, frameNo);   // animated icon, clear of the date row
 
   if (!isNightMode) {
     drawPottedPlant(41, 59, frameNo);       // wider pot fills the right column edge-to-edge

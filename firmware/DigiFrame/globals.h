@@ -151,7 +151,6 @@ struct ThemeColors {
   String dateHex = "#c8beff";
   String tempHex = "#add8ff";
   String calTimeHex = "#ffffff";
-  String calTextHex = "#ffffff";
   
   uint16_t hour = 0;
   uint16_t minute = 0;
@@ -160,7 +159,6 @@ struct ThemeColors {
   uint16_t date = 0;
   uint16_t temp = 0;
   uint16_t calTime = 0;
-  uint16_t calText = 0;
 };
 ThemeColors theme;
 
@@ -184,7 +182,6 @@ void applyThemeColors() {
   theme.date = hexToRGB565(theme.dateHex);
   theme.temp = hexToRGB565(theme.tempHex);
   theme.calTime = hexToRGB565(theme.calTimeHex);
-  theme.calText = hexToRGB565(theme.calTextHex);
 }
 
 #define C_TIME   theme.hour          // fallback for legacy code

@@ -177,7 +177,6 @@ void saveConfig() {
   d["cS"] = theme.secHex;
   d["cD"] = theme.dateHex;
   d["cT"] = theme.tempHex;
-  d["cCtx"] = theme.calTextHex;
   d["cCtm"] = theme.calTimeHex;
   File f = LittleFS.open("/config.json", "w");
   serializeJson(d, f);
@@ -218,7 +217,6 @@ void loadConfig() {
     if (d["cS"].is<const char*>()) theme.secHex = d["cS"].as<String>();
     if (d["cD"].is<const char*>()) theme.dateHex = d["cD"].as<String>();
     if (d["cT"].is<const char*>()) theme.tempHex = d["cT"].as<String>();
-    if (d["cCtx"].is<const char*>()) theme.calTextHex = d["cCtx"].as<String>();
     if (d["cCtm"].is<const char*>()) theme.calTimeHex = d["cCtm"].as<String>();
     
     applyThemeColors();

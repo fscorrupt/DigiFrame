@@ -19,7 +19,7 @@ button{cursor:pointer;background:#ff5078;border:0}li{margin:6px 0;list-style:non
 <div id=curr style="font-size:14px;color:#4f4;font-weight:bold;margin-bottom:4px">Clock</div>
 </fieldset>
 <fieldset><legend>Send a message</legend>
-<input id=m placeholder="Hello!" style="width:64%">
+<textarea id=m placeholder="Hello!" style="width:64%; height:60px; vertical-align:middle;"></textarea>
 <button onclick="setMsg()">Send</button>
 <div class=st>Use \n for new lines (scrolls line by line)</div></fieldset>
 <fieldset><legend>Brightness</legend>
@@ -64,8 +64,7 @@ button{cursor:pointer;background:#ff5078;border:0}li{margin:6px 0;list-style:non
     <div style="text-align:right">Secs:</div><input type=color id=cS value="#ff5078">
     <div style="text-align:right">Date:</div><input type=color id=cD value="#888888">
     <div style="text-align:right">Temp:</div><input type=color id=cT value="#44aaff">
-    <div style="text-align:right">Cal Time:</div><input type=color id=cCtm value="#ffcc00">
-    <div style="text-align:right">Cal Text:</div><input type=color id=cCtx value="#ffffff">
+    <div style="text-align:right">Calendar:</div><input type=color id=cCtm value="#ffcc00">
   </div>
   </div>
 </div>
@@ -81,8 +80,8 @@ button{cursor:pointer;background:#ff5078;border:0}li{margin:6px 0;list-style:non
   <select id=nmo><option value=0>Auto (Schedule)</option><option value=1>Force ON</option><option value=2>Force OFF</option></select>
 </div>
 <div id=nmSched>
-  Start: <input id=ns type=number min=0 max=23 placeholder="23" style="width:40px">h &nbsp; 
-  End: <input id=ne type=number min=0 max=23 placeholder="7" style="width:40px">h<br>
+  Start: <input id=ns type=number min=0 max=23 placeholder="23" style="width:50px">h &nbsp; 
+  End: <input id=ne type=number min=0 max=23 placeholder="7" style="width:50px">h<br>
   <div style="font-size:12px;margin-top:6px;display:flex;gap:6px">
     <label><input type=checkbox id=nd0>Su</label>
     <label><input type=checkbox id=nd1>Mo</label>
@@ -131,7 +130,8 @@ async function api(ep,body){await fetch('/api/'+ep,{method:'POST',
     let fs = (s.fsUsed/1024/1024).toFixed(2) + ' MB / ' + (s.fsTotal/1024/1024).toFixed(2) + ' MB';
     let mem = (s.heapFree/1024).toFixed(1) + ' KB free';
     let psr = (s.psramFree/1024/1024).toFixed(2) + ' MB free';
-    document.getElementById('sys').innerHTML = '<b>Storage:</b> ' + fs + '<br><b>Heap:</b> ' + mem + '<br><b>PSRAM:</b> ' + psr;
+    let temp = (s.temp !== undefined) ? s.temp.toFixed(1) + ' &deg;C' : 'N/A';
+    document.getElementById('sys').innerHTML = '<b>Storage:</b> ' + fs + '<br><b>Heap:</b> ' + mem + '<br><b>PSRAM:</b> ' + psr + '<br><b>Temp:</b> ' + temp;
   }
   
   l.innerHTML=j.map(g=>{
@@ -152,6 +152,7 @@ function ota(){if(!fw.files[0]){ost.textContent='pick a .bin first';return}
  x.onerror=()=>{ost.textContent='upload failed (connection lost)'};
  let fd=new FormData();fd.append('file',fw.files[0]);x.send(fd);
  ost.textContent='uploading...'}
+ function setMsg(){api('msg','t='+encodeURIComponent(document.getElementById('m').value))}
  async function loadCfg(){try{let r=await fetch('/api/config'),j=await r.json();
  ws.placeholder=j.ssid?('SSID: '+j.ssid):'network name (SSID)';
  if(j.lat) la.value=j.lat; if(j.lon) lo.value=j.lon;
@@ -163,7 +164,7 @@ function ota(){if(!fw.files[0]){ost.textContent='pick a .bin first';return}
  if(j.no!==undefined)nmo.value=j.no;
  if(j.cH) cH.value=j.cH; if(j.cM) cM.value=j.cM; if(j.cC) cC.value=j.cC;
  if(j.cS) cS.value=j.cS; if(j.cD) cD.value=j.cD; if(j.cT) cT.value=j.cT;
- if(j.cCtx) cCtx.value=j.cCtx; if(j.cCtm) cCtm.value=j.cCtm;
+ if(j.cCtm) cCtm.value=j.cCtm;
 }catch(e){}}
 async function loadEv(){try{let r=await fetch('/api/events'),j=await r.json();
  ev.innerHTML=j.length?j.map(e=>`<li>${e.date} [${e.type}] ${e.message} <button onclick="delEv('${e.date}')">&#128465;</button></li>`).join(''):'<li class=st>none yet</li>'}catch(e){}}
@@ -205,7 +206,6 @@ async function saveAll() {
     p.append("cS", document.getElementById('cS').value);
     p.append("cD", document.getElementById('cD').value);
     p.append("cT", document.getElementById('cT').value);
-    p.append("cCtx", document.getElementById('cCtx').value);
     p.append("cCtm", document.getElementById('cCtm').value);
     await fetch('/api/saveall', { method:'POST', body: p });
     savSt.textContent = "Saved successfully!"; savSt.style.color = "#0f0";
@@ -230,7 +230,7 @@ void handleUpload() {
     webUpload = LittleFS.open("/" + nm, "w");
   } else if (up.status == UPLOAD_FILE_WRITE) {
     if (webUpload) webUpload.write(up.buf, up.currentSize);
-  } else if (up.status == UPLOAD_FILE_END) {
+  } else if (up.status == UPLOAD_FILE_END || up.status == UPLOAD_FILE_ABORTED) {
     if (webUpload) webUpload.close();
   }
 }
@@ -318,7 +318,7 @@ void setupWeb() {
   web.on("/", HTTP_GET, []() {
     web.sendHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     web.sendHeader("Pragma", "no-cache");
-    web.sendHeader("Expires", "0");
+    web.sendHeader("Expires", "-1");
     web.send_P(200, "text/html", DASH_HTML);
   });
   web.on("/api/logs", HTTP_GET, []() {
@@ -335,6 +335,7 @@ void setupWeb() {
     doc["heapSize"] = ESP.getHeapSize();
     doc["psramFree"] = ESP.getFreePsram();
     doc["psramSize"] = ESP.getPsramSize();
+    if (!isnan(wTemp)) doc["temp"] = wTemp;
     String out; serializeJson(doc, out);
     web.send(200, "application/json", out);
   });
@@ -447,7 +448,6 @@ void setupWeb() {
                      ",\"cS\":\"" + theme.secHex + "\"" +
                      ",\"cD\":\"" + theme.dateHex + "\"" +
                      ",\"cT\":\"" + theme.tempHex + "\"" +
-                     ",\"cCtx\":\"" + theme.calTextHex + "\"" +
                      ",\"cCtm\":\"" + theme.calTimeHex + "\"" +
                      "}");
     web.send(200, "application/json", cfg);
@@ -496,7 +496,6 @@ void setupWeb() {
     if (web.hasArg("cS")) theme.secHex = web.arg("cS");
     if (web.hasArg("cD")) theme.dateHex = web.arg("cD");
     if (web.hasArg("cT")) theme.tempHex = web.arg("cT");
-    if (web.hasArg("cCtx")) theme.calTextHex = web.arg("cCtx");
     if (web.hasArg("cCtm")) theme.calTimeHex = web.arg("cCtm");
     applyThemeColors();
     
