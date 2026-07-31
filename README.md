@@ -178,7 +178,7 @@ brightness, messages, weather location, color configuration, and live logs.
 
 Enable MQTT and set your broker (e.g. the Mosquitto add-on) from any dashboard.
 The clock announces itself to Home Assistant via MQTT discovery as a device with
-brightness, a message text box, night mode controls, celebrate/stop buttons, and temperature/mode
+brightness, a message text box, a GIF selector, night mode controls, celebrate/stop buttons, and temperature/mode
 sensors. 
 
 **See [HomeAssistant.md](HomeAssistant.md)** for copy-paste YAML examples on how to sync your Google Calendar and control the frame's Night Mode via automations!

@@ -60,6 +60,18 @@ void mqttPublishDiscovery() {
   { JsonDocument d; d["name"] = "Message"; d["uniq_id"] = mqttIdStr + "_msg";
     d["cmd_t"] = mqttBase + "/message/set"; d["stat_t"] = mqttBase + "/message";
     mqttPubDisco("text", "message", d); }
+  { JsonDocument d; d["name"] = "Play GIF"; d["uniq_id"] = mqttIdStr + "_playgif";
+    d["cmd_t"] = mqttBase + "/playgif/set"; d["stat_t"] = mqttBase + "/playgif";
+    JsonArray opts = d["options"].to<JsonArray>();
+    opts.add("None");
+    File root = LittleFS.open("/");
+    File f = root.openNextFile();
+    while (f) {
+      String nm = f.name();
+      if (nm.endsWith(".gif")) opts.add(nm);
+      f = root.openNextFile();
+    }
+    mqttPubDisco("select", "playgif", d); }
   { JsonDocument d; d["name"] = "Celebrate"; d["uniq_id"] = mqttIdStr + "_celebrate";
     d["cmd_t"] = mqttBase + "/celebrate/set"; mqttPubDisco("button", "celebrate", d); }
   { JsonDocument d; d["name"] = "Back to clock"; d["uniq_id"] = mqttIdStr + "_stop";
@@ -81,6 +93,7 @@ void mqttPublishState(bool force) {
   mqttClient.publish((mqttBase + "/nightmode").c_str(), nm[constrain(cfgNightOverride, 0, 2)], true);
   mqttClient.publish((mqttBase + "/mode").c_str(), mqttModeName(mode), true);
   mqttClient.publish((mqttBase + "/message").c_str(), scrollText.c_str(), true);
+  mqttClient.publish((mqttBase + "/playgif").c_str(), (mode == MODE_GIF && currentGifPath.length() > 1) ? currentGifPath.substring(1).c_str() : "None", true);
   if (!isnan(wTemp))
     mqttClient.publish((mqttBase + "/temperature").c_str(), String(wTemp, 1).c_str(), true);
 }
@@ -92,6 +105,10 @@ void mqttCallback(char *topic, byte *payload, unsigned int len) {
   for (unsigned int i = 0; i < len; i++) v += (char)payload[i];
   if      (t.endsWith("/brightness/set")) postAction(CMD_BRIGHTNESS, "", "", (uint8_t)constrain(v.toInt(), 1, 255));
   else if (t.endsWith("/message/set"))    postAction(CMD_MSG, v);
+  else if (t.endsWith("/playgif/set")) {
+    if (v == "None") postAction(CMD_STOP);
+    else postAction(CMD_PLAY_GIF, v);
+  }
   else if (t.endsWith("/celebrate/set"))  postAction(CMD_CELEBRATE);
   else if (t.endsWith("/stop/set"))       postAction(CMD_STOP);
   else if (t.endsWith("/nightmode/set")) {
@@ -122,6 +139,7 @@ bool mqttReconnect() {
   mqttClient.subscribe((mqttBase + "/brightness/set").c_str());
   mqttClient.subscribe((mqttBase + "/nightmode/set").c_str());
   mqttClient.subscribe((mqttBase + "/message/set").c_str());
+  mqttClient.subscribe((mqttBase + "/playgif/set").c_str());
   mqttClient.subscribe((mqttBase + "/celebrate/set").c_str());
   mqttClient.subscribe((mqttBase + "/stop/set").c_str());
   mqttPublishDiscovery();
@@ -144,6 +162,10 @@ void mqttTask(void *pv) {
           lastTry = millis();            // record time AFTER blocking connect
         }
       } else {
+        if (mqttDiscoveryDirty) {
+          mqttDiscoveryDirty = false;
+          mqttPublishDiscovery();
+        }
         mqttClient.loop();
         mqttPublishState(false);
       }

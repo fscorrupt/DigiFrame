@@ -80,3 +80,61 @@ action:
     data:
       option: "On"
 ```
+
+## 3. Play GIFs via MQTT
+DigiFrame also exposes a **"Play GIF"** `select` entity to Home Assistant via MQTT Discovery.
+
+You can use this to trigger animations from your Home Assistant dashboards or automations by selecting the filename of the GIF (e.g. `cake.gif`). The GIF must already be uploaded to the frame's memory via the web dashboard. The options in this dropdown are automatically updated whenever you add or delete a GIF! Selecting `None` will stop the GIF and return to the clock.
+
+**Example Automation:** Play a GIF when someone arrives home:
+```yaml
+alias: "DigiFrame: Play Welcome GIF"
+trigger:
+  - platform: state
+    entity_id: person.john
+    to: "home"
+action:
+  - service: select.select_option
+    target:
+      entity_id: select.digiframe_play_gif
+    data:
+      option: "welcome.gif"
+```
+
+## 4. Overlay Text on a GIF
+It is absolutely possible to merge a scrolling text message and a GIF simultaneously! If you trigger a GIF and a message at the same time, DigiFrame will automatically overlay the text on top of the GIF with a solid black backing so it remains perfectly legible.
+
+Here is how you can welcome someone home with an animation and a message for 5 minutes, then return to the clock:
+
+**Example Automation:** Welcome Home Overlay (Handles multiple people)
+```yaml
+alias: "DigiFrame: Welcome Home (GIF + Text)"
+triggers:
+  - entity_id:
+      - person.john
+      - person.jane
+    to:
+      - home
+    trigger: state
+    from: null
+actions:
+  - target:
+      entity_id: select.digiframe_play_gif
+    data:
+      option: welcome.gif
+    action: select.select_option
+  - target:
+      entity_id: text.digiframe_message
+    data:
+      value: >
+        Hallo!\n{{ expand('person.john', 'person.jane') |
+        selectattr('state', 'eq', 'home') | map(attribute='name') | join(' & ')
+        }}
+    action: text.set_value
+  - delay: "00:03:00"
+  - target:
+      entity_id: button.digiframe_back_to_clock
+    action: button.press
+mode: restart
+
+```

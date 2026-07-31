@@ -232,6 +232,7 @@ void handleUpload() {
     if (webUpload) webUpload.write(up.buf, up.currentSize);
   } else if (up.status == UPLOAD_FILE_END || up.status == UPLOAD_FILE_ABORTED) {
     if (webUpload) webUpload.close();
+    if (up.status == UPLOAD_FILE_END) mqttDiscoveryDirty = true;
   }
 }
 

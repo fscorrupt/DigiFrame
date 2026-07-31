@@ -41,7 +41,9 @@ bool ctlDelGif(const String &name) {
     closeGif();
     mode = MODE_CLOCK;
   }
-  return LittleFS.remove(p);
+  bool ok = LittleFS.remove(p);
+  if (ok) mqttDiscoveryDirty = true;
+  return ok;
 }
 
 void ctlSetInterval(int minutes) {

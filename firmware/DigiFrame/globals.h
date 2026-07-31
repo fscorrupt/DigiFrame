@@ -29,6 +29,7 @@ int    mqttPort   = MQTT_PORT;
 String mqttUser   = MQTT_USER;
 String mqttPass   = MQTT_PASS;
 volatile bool mqttConfigDirty = false;  // set by web/BLE (core 1), applied by mqttTask (core 0)
+volatile bool mqttDiscoveryDirty = false; // triggers HA discovery republish
 volatile bool weatherNow   = false;  // web handler asks for an immediate refetch
 bool          portalActive = false;  // setup hotspot + captive portal active
 volatile bool wifiRetryNow = false;  // web handler asks for an immediate STA (re)connect

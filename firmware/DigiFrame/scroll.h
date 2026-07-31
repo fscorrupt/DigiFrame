@@ -12,7 +12,7 @@ int measuredW = 0;
 int scrollTextSize = 2;
 int scrollMaxLines = 3;
 
-bool renderScroll(uint16_t color) {
+bool renderScroll(uint16_t color, bool clearScreen = true) {
   if (millis() - lastScrollAt < 45) return false;
   lastScrollAt = millis();
   
@@ -32,13 +32,8 @@ bool renderScroll(uint16_t color) {
         startIdx = i + 1;
       }
     }
-    if (totalLines <= 3) {
-      scrollTextSize = 2;
-      scrollMaxLines = 3;
-    } else {
-      scrollTextSize = 1;
-      scrollMaxLines = 7;
-    }
+    scrollTextSize = 1;
+    scrollMaxLines = 7;
     
     for (int i = 0; i < totalLines; i++) {
       lineWidths[i] = getUTF8TextWidth(lines[i], scrollTextSize);
@@ -50,10 +45,14 @@ bool renderScroll(uint16_t color) {
   
   if (totalLines == 0) return true;
 
-  dma->fillScreen(0);
+  if (clearScreen) {
+    dma->fillScreen(0);
+    dma->setTextColor(color);
+  } else {
+    dma->setTextColor(color, 0);
+  }
   dma->setTextWrap(false);
   dma->setTextSize(scrollTextSize);
-  dma->setTextColor(color);
   
   int pageIdx = currentScrollLine / scrollMaxLines;
   int linesInPage = totalLines - (pageIdx * scrollMaxLines);
@@ -62,7 +61,7 @@ bool renderScroll(uint16_t color) {
   int lineHeight = (scrollTextSize == 2) ? 16 : 8;
   int lineSpacing = (scrollTextSize == 2) ? 2 : 1;
   int totalH = linesInPage * lineHeight + (linesInPage - 1) * lineSpacing;
-  int startY = (64 - totalH) / 2;
+  int startY = 1; // Render at the top of the screen
   
   for (int i = 0; i < linesInPage; i++) {
     int globalLineIdx = pageIdx * scrollMaxLines + i;
