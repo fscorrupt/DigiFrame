@@ -13,10 +13,12 @@ control it from the **clock's own web dashboard** on your WiFi, or **Home Assist
 > - **Emoji & Multiline Support**: Built-in, lightweight UTF-8 text rendering engine that converts multi-byte Unicode strings to CP437, natively supporting German umlauts (Ä, Ö, Ü). Includes a custom 8x8 pixel-art engine that draws native emojis (e.g. ❤️, ⚠️, 🗑️, ☀️, ☁️) for calendar and HA messages. Send messages with `\n` to automatically wrap them onto multiple lines which then scroll elegantly across the screen **line by line** for improved readability.
 > - **Localization & Time Formats**: Added German language support and a 12/24-hour time format toggle.
 > - **Performance Enhancements**: Various performance optimizations across the UI and system.
+
+<p align="center">
 <img width="348" height="309" alt="image" src="https://github.com/user-attachments/assets/af550b2b-7f29-44a7-8fd2-f4ecf1a362cc" />
+</p>
 
 > Source-available for **DIY / noncommercial** use — contributions welcome. Commercial use needs a [separate license](#license).
-
 [![License: PolyForm Noncommercial](https://img.shields.io/badge/license-PolyForm%20Noncommercial-blue)](LICENSE.md)
 [![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-EA4AAA?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/manoharc07)
 
