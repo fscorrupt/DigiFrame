@@ -78,7 +78,7 @@ int daysToNextEvent(String &nameOut) {
 }
 
 /**********************  6a. CALENDAR EVENTS (from HA)  ****************/
-struct CalendarEvent { String date; String time; String message; };
+struct CalendarEvent { String date; String endDate; String time; String message; };
 #define MAX_CALENDAR 10
 CalendarEvent calEvents[MAX_CALENDAR];
 int numCalEvents = 0;
@@ -89,6 +89,7 @@ void saveCalendar() {
   for (int i = 0; i < numCalEvents; i++) {
     JsonObject o = arr.add<JsonObject>();
     o["d"] = calEvents[i].date;
+    if (calEvents[i].endDate.length() > 0) o["e"] = calEvents[i].endDate;
     if (calEvents[i].time.length() > 0) o["t"] = calEvents[i].time;
     o["m"] = calEvents[i].message;
   }
@@ -106,13 +107,17 @@ void loadCalendar() {
     for (JsonObject o : doc.as<JsonArray>()) {
       if (numCalEvents >= MAX_CALENDAR) break;
       String d = o["d"].as<String>();
+      String e = o["e"].is<const char*>() ? o["e"].as<String>() : String("");
       String t = o["t"].is<const char*>() ? o["t"].as<String>() : String("");
       String m = o["m"].as<String>();
       if (t.length() == 0 && m.length() >= 8 && m[2] == ':' && m.substring(5, 8) == " - ") {
         t = m.substring(0, 5);
         m = m.substring(8);
       }
-      calEvents[numCalEvents++] = { d, t, m };
+      if (t == "00:00") {
+        t = "";
+      }
+      calEvents[numCalEvents++] = { d, e, t, m };
     }
   }
   f.close();
@@ -125,13 +130,17 @@ void setCalendarFromJson(const String &jsonStr) {
     for (JsonObject o : doc.as<JsonArray>()) {
       if (numCalEvents >= MAX_CALENDAR) break;
       String d = o["d"].as<String>();
+      String e = o["e"].is<const char*>() ? o["e"].as<String>() : String("");
       String t = o["t"].is<const char*>() ? o["t"].as<String>() : String("");
       String m = o["m"].as<String>();
       if (t.length() == 0 && m.length() >= 8 && m[2] == ':' && m.substring(5, 8) == " - ") {
         t = m.substring(0, 5);
         m = m.substring(8);
       }
-      calEvents[numCalEvents++] = { d, t, m };
+      if (t == "00:00") {
+        t = "";
+      }
+      calEvents[numCalEvents++] = { d, e, t, m };
     }
     saveCalendar();
   }
@@ -169,6 +178,9 @@ void saveConfig() {
   d["ns"]      = cfgNightStart;
   d["ne"]      = cfgNightEnd;
   d["nd"]      = cfgNightDays;
+  d["ns2"]     = cfgNightStart2;
+  d["ne2"]     = cfgNightEnd2;
+  d["nd2"]     = cfgNightDays2;
   d["no"]      = cfgNightOverride;
   d["ssid"]    = cfgWifiSsid;
   d["pass"]    = cfgWifiPass;
@@ -208,6 +220,9 @@ void loadConfig() {
     if (d["ns"].is<int>())      cfgNightStart = d["ns"].as<int>();
     if (d["ne"].is<int>())      cfgNightEnd = d["ne"].as<int>();
     if (d["nd"].is<int>())      cfgNightDays = d["nd"].as<int>();
+    if (d["ns2"].is<int>())     cfgNightStart2 = d["ns2"].as<int>();
+    if (d["ne2"].is<int>())     cfgNightEnd2 = d["ne2"].as<int>();
+    if (d["nd2"].is<int>())     cfgNightDays2 = d["nd2"].as<int>();
     if (d["no"].is<int>())      cfgNightOverride = d["no"].as<int>();
     if (d["ssid"].is<const char*>())    cfgWifiSsid   = d["ssid"].as<String>();
     if (d["pass"].is<const char*>())    cfgWifiPass   = d["pass"].as<String>();

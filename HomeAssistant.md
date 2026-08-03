@@ -19,6 +19,7 @@ rest_command:
         {% for event in events %}
           {
             "d": "{{ as_timestamp(event.start) | timestamp_custom('%Y-%m-%d') }}",
+            "e": "{{ as_timestamp(event.end) | timestamp_custom('%Y-%m-%d') }}",
             "t": "{{ as_timestamp(event.start) | timestamp_custom('%H:%M') }}",
             "m": "{{ event.summary }}"
           }

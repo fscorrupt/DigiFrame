@@ -17,9 +17,8 @@ void ctlSendMsg(const String &text, bool pin) {
   t.replace("\\n", "\n");
   if (!t.length()) return;
   scrollText = t;
-  scrollX = PANEL_W;
-  closeGif();
-  mode      = MODE_MSG;
+  scrollX = 40;
+  if (mode != MODE_CELEBRATE) mode = MODE_MSG;
   msgEndsAt = pin ? 0 : (millis() + MSG_MINUTES * 60000UL);
 }
 
@@ -31,7 +30,10 @@ void ctlSetBrightness(int v) {
 
 bool ctlPlayGif(const String &name) {          // name = "foo.gif" or "/foo.gif"
   String p = name.startsWith("/") ? name : "/" + name;
-  if (openGif(p, true)) { mode = MODE_GIF; return true; }
+  if (openGif(p, true)) {
+    if (mode != MODE_MSG && mode != MODE_CELEBRATE) mode = MODE_GIF;
+    return true; 
+  }
   return false;
 }
 

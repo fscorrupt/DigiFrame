@@ -19,7 +19,7 @@ bool renderScroll(uint16_t color, bool clearScreen = true) {
   if (scrollText != lastMeasuredStr) {
     lastMeasuredStr = scrollText;
     currentScrollLine = 0;
-    scrollX = PANEL_W;
+    scrollX = 40;
     totalLines = 0;
     
     int startIdx = 0;
@@ -71,7 +71,11 @@ bool renderScroll(uint16_t color, bool clearScreen = true) {
     if (lineW <= PANEL_W) {
       x = (PANEL_W - lineW) / 2;
     } else {
-      x = (globalLineIdx == currentScrollLine) ? scrollX : 0;
+      int excess = lineW - PANEL_W;
+      int drawX = (scrollX > 0) ? 0 : scrollX;
+      if (drawX < -excess) drawX = -excess;
+      
+      x = (globalLineIdx == currentScrollLine) ? drawX : 0;
     }
     drawUTF8Text(x, y, lines[globalLineIdx], scrollTextSize);
   }
@@ -80,8 +84,11 @@ bool renderScroll(uint16_t color, bool clearScreen = true) {
   drawSpark(53, 54, C_ACCENT);
   scrollX--;
   
-  if (scrollX < -measuredW) {
-    scrollX = PANEL_W;
+  int excess = measuredW - PANEL_W;
+  if (excess < 0) excess = 0;
+  
+  if (scrollX < -excess - 30) {
+    scrollX = 40;
     currentScrollLine++;
     if (currentScrollLine >= totalLines) {
       currentScrollLine = 0;

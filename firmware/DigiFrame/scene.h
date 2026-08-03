@@ -509,10 +509,11 @@ void drawCalendarEventsOnScene(uint32_t f) {
   dma->setTextSize(1);
   dma->setTextWrap(false);
 
-  // Collect up to 3 upcoming events for TODAY
   struct UpEv { String msg; String time; };
-  UpEv upcoming[3];
-  int found = 0;
+  UpEv multiDay[MAX_CALENDAR];
+  UpEv normal[MAX_CALENDAR];
+  int numMulti = 0;
+  int numNormal = 0;
 
   time_t now = time(nullptr);
   struct tm tmp;
@@ -522,64 +523,181 @@ void drawCalendarEventsOnScene(uint32_t f) {
            tmp.tm_year + 1900, tmp.tm_mon + 1, tmp.tm_mday);
   String isoStr(iso);
 
-  for (int i = 0; i < numCalEvents && found < 3; i++) {
+  for (int i = 0; i < numCalEvents; i++) {
+    bool activeToday = false;
+    bool isMulti = false;
+
     if (calEvents[i].date == isoStr) {
-      upcoming[found] = { calEvents[i].message, calEvents[i].time };
-      found++;
+        activeToday = true;
+        if (calEvents[i].endDate.length() == 10 && calEvents[i].endDate > calEvents[i].date) {
+            isMulti = true;
+        }
+    } else if (calEvents[i].endDate.length() == 10 && isoStr > calEvents[i].date) {
+        if (calEvents[i].time == "") {
+            if (isoStr < calEvents[i].endDate) { activeToday = true; isMulti = true; }
+        } else {
+            if (isoStr <= calEvents[i].endDate) { activeToday = true; isMulti = true; }
+        }
+    }
+
+    if (activeToday) {
+      if (isMulti) {
+        if (numMulti < MAX_CALENDAR) multiDay[numMulti++] = { calEvents[i].message, calEvents[i].time };
+      } else {
+        if (numNormal < MAX_CALENDAR) normal[numNormal++] = { calEvents[i].message, calEvents[i].time };
+      }
     }
   }
 
-  if (found == 0) return;
+  if (numMulti == 0 && numNormal == 0) return;
 
-  // Layout: evenly space up to 3 rows starting at TOP+1
-  int yStarts[3];
-  if (found == 1) { yStarts[0] = TOP + 3; }
-  else if (found == 2) { yStarts[0] = TOP + 1; yStarts[1] = TOP + 9; }
-  else { yStarts[0] = TOP + 1; yStarts[1] = TOP + 9; yStarts[2] = TOP + 17; }
+  int multiY = -1;
+  int yStartsNormal[4];
+  int numRowsUsed = (numNormal > 4) ? 4 : numNormal;
+  if (numMulti > 0 && numNormal > 3) numRowsUsed = 3; // reserve 1 row for multi
 
-  for (int i = 0; i < found; i++) {
-    uint16_t txtColor = dma->color565(255, 190, 60);
+  int totalR = (numMulti > 0 ? 1 : 0) + numRowsUsed;
+  int startY, step;
+  if (totalR == 1) { startY = TOP + 10; step = 8; }
+  else if (totalR == 2) { startY = TOP + 6; step = 8; }
+  else if (totalR == 3) { startY = TOP + 2; step = 8; }
+  else { startY = TOP; step = 7; } // For 4 rows, 0 padding
 
-    String &name = upcoming[i].msg;
-    String &timeStr = upcoming[i].time;
-    
-    int msgStartX = 1;
-    if (timeStr.length() > 0) {
-        // Draw time using tiny 3x5 font
-        dma->setFont(&TomThumb);
-        dma->setTextColor(theme.calTime);
-        // TomThumb draws from the bottom-left baseline, so y needs +5
-        dma->setCursor(1, yStarts[i] + 5);
-        dma->print(timeStr);
-        dma->setFont(); // Reset to default font
-        
-        // Advance msgStartX past the time string
-        msgStartX = 1 + (timeStr.length() * 4) + 2;
-    }
-
-    int namePx   = PANEL_W - msgStartX;
-    dma->setTextColor(theme.calTime);
-    
-    if (getUTF8TextWidth(name, 1, true) <= namePx) {
-      drawUTF8Text(msgStartX, yStarts[i], name, 1, true);
-    } else {
-      int excess     = getUTF8TextWidth(name, 1, true) - namePx;
-      int pauseFrames = 20;                  
-      int totalRange  = excess + pauseFrames * 2;
-      int tick = (int)((f / 3 + i * 30) % (uint32_t)totalRange); 
-      int scroll = constrain(tick - pauseFrames, 0, excess);
-      
-      drawUTF8Text(msgStartX - scroll, yStarts[i], name, 1, true);
-      dma->fillRect(0, yStarts[i], msgStartX, 8, 0); // blank out left edge bleed
-      if (timeStr.length() > 0) {
-        // Redraw time on top
-        dma->setFont(&TomThumb);
-        dma->setTextColor(theme.calTime);
-        dma->setCursor(1, yStarts[i] + 5);
-        dma->print(timeStr);
-        dma->setFont();
+  if (numMulti > 0) {
+      multiY = startY;
+      for (int i = 0; i < numRowsUsed; i++) {
+          yStartsNormal[i] = startY + (i + 1) * step;
       }
-    }
+  } else {
+      for (int i = 0; i < numRowsUsed; i++) {
+          yStartsNormal[i] = startY + i * step;
+      }
+  }
+
+  if (numMulti > 0) {
+      int frames[MAX_CALENDAR];
+      int totalFrames = 0;
+      for (int i = 0; i < numMulti; i++) {
+        int msgStartX = 1;
+        if (multiDay[i].time.length() > 0) msgStartX = 1 + (multiDay[i].time.length() * 4) + 2;
+        int namePx = PANEL_W - msgStartX;
+        int width = getUTF8TextWidth(multiDay[i].msg, 1, true);
+        if (width <= namePx) { frames[i] = 150; }
+        else {
+          int excess = width - namePx;
+          frames[i] = (excess + 40) * 3;
+          if (frames[i] < 150) frames[i] = 150;
+        }
+        totalFrames += frames[i];
+      }
+      int currentFrame = f % totalFrames;
+      int eventIdx = 0;
+      int accum = 0;
+      for (int i = 0; i < numMulti; i++) {
+        if (currentFrame >= accum && currentFrame < accum + frames[i]) { eventIdx = i; break; }
+        accum += frames[i];
+      }
+      int local_f = currentFrame - accum;
+      
+      String &name = multiDay[eventIdx].msg;
+      String &timeStr = multiDay[eventIdx].time;
+      int msgStartX = 1;
+      if (timeStr.length() > 0) {
+          dma->setFont(&TomThumb);
+          dma->setTextColor(theme.calTime);
+          dma->setCursor(1, multiY + 5);
+          dma->print(timeStr);
+          dma->setFont();
+          msgStartX = 1 + (timeStr.length() * 4) + 2;
+      }
+      int namePx = PANEL_W - msgStartX;
+      dma->setTextColor(theme.calTime);
+      if (getUTF8TextWidth(name, 1, true) <= namePx) {
+        drawUTF8Text(msgStartX, multiY, name, 1, true);
+      } else {
+        int excess = getUTF8TextWidth(name, 1, true) - namePx;
+        int tick = local_f / 3;
+        int scroll = constrain(tick - 20, 0, excess);
+        drawUTF8Text(msgStartX - scroll, multiY, name, 1, true);
+        dma->fillRect(0, multiY, msgStartX, 8, 0);
+        if (timeStr.length() > 0) {
+          dma->setFont(&TomThumb);
+          dma->setTextColor(theme.calTime);
+          dma->setCursor(1, multiY + 5);
+          dma->print(timeStr);
+          dma->setFont();
+        }
+      }
+  }
+
+  for (int i = 0; i < numRowsUsed; i++) {
+      int yStart = yStartsNormal[i];
+      int eventIdx = i;
+      int scroll_tick = -1;
+      
+      if (i == numRowsUsed - 1 && numNormal > numRowsUsed) {
+          int cycleCount = numNormal - i;
+          int frames[MAX_CALENDAR];
+          int totalFrames = 0;
+          for (int j = 0; j < cycleCount; j++) {
+            int actualIdx = i + j;
+            int msgStartX = 1;
+            if (normal[actualIdx].time.length() > 0) msgStartX = 1 + (normal[actualIdx].time.length() * 4) + 2;
+            int namePx = PANEL_W - msgStartX;
+            int width = getUTF8TextWidth(normal[actualIdx].msg, 1, true);
+            if (width <= namePx) { frames[j] = 150; }
+            else {
+              int excess = width - namePx;
+              frames[j] = (excess + 40) * 3;
+              if (frames[j] < 150) frames[j] = 150;
+            }
+            totalFrames += frames[j];
+          }
+          int currentFrame = f % totalFrames;
+          int j_idx = 0;
+          int accum = 0;
+          for (int j = 0; j < cycleCount; j++) {
+            if (currentFrame >= accum && currentFrame < accum + frames[j]) { j_idx = j; break; }
+            accum += frames[j];
+          }
+          scroll_tick = (currentFrame - accum) / 3;
+          eventIdx = i + j_idx;
+      }
+
+      String &name = normal[eventIdx].msg;
+      String &timeStr = normal[eventIdx].time;
+      int msgStartX = 1;
+      if (timeStr.length() > 0) {
+          dma->setFont(&TomThumb);
+          dma->setTextColor(theme.calTime);
+          dma->setCursor(1, yStart + 5);
+          dma->print(timeStr);
+          dma->setFont();
+          msgStartX = 1 + (timeStr.length() * 4) + 2;
+      }
+      int namePx = PANEL_W - msgStartX;
+      dma->setTextColor(theme.calTime);
+      if (getUTF8TextWidth(name, 1, true) <= namePx) {
+        drawUTF8Text(msgStartX, yStart, name, 1, true);
+      } else {
+        int excess = getUTF8TextWidth(name, 1, true) - namePx;
+        int tick;
+        if (scroll_tick >= 0) {
+            tick = scroll_tick;
+        } else {
+            tick = (int)((f / 3 + i * 30) % (uint32_t)(excess + 40)); 
+        }
+        int scroll = constrain(tick - 20, 0, excess);
+        drawUTF8Text(msgStartX - scroll, yStart, name, 1, true);
+        dma->fillRect(0, yStart, msgStartX, 8, 0);
+        if (timeStr.length() > 0) {
+          dma->setFont(&TomThumb);
+          dma->setTextColor(theme.calTime);
+          dma->setCursor(1, yStart + 5);
+          dma->print(timeStr);
+          dma->setFont();
+        }
+      }
   }
 }
 

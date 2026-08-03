@@ -61,7 +61,7 @@ void runCelebration() {
       celebPhase = 1;
       celebPhaseAt = millis();
       scrollText = celebMsg;
-      scrollX = PANEL_W;
+      scrollX = 40;
       logLine("celebration -> banner phase");
     }
   } else {
@@ -150,7 +150,7 @@ void runTest() {
     if (scrollStepAt != testStepAt) {
       scrollStepAt = testStepAt;
       scrollText = "HELLO! THIS IS A TEST MESSAGE";
-      scrollX = PANEL_W;
+      scrollX = 40;
     }
     if (renderScroll(C_MSG)) dma->flipDMABuffer();
     return;
@@ -172,7 +172,7 @@ void runTest() {
     if (partyScrollStepAt != testStepAt) {
       partyScrollStepAt = testStepAt;
       scrollText = "CELEBRATION TIME!";
-      scrollX = PANEL_W;
+      scrollX = 40;
     }
     static uint32_t lastTick = 0;
     if (ms - lastTick > 66) { lastTick = ms; frameNo++; }

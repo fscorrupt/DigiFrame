@@ -80,6 +80,7 @@ button{cursor:pointer;background:#ff5078;border:0}li{margin:6px 0;list-style:non
   <select id=nmo><option value=0>Auto (Schedule)</option><option value=1>Force ON</option><option value=2>Force OFF</option></select>
 </div>
 <div id=nmSched>
+  <b>Schedule 1</b><br>
   Start: <input id=ns type=number min=0 max=23 placeholder="23" style="width:50px">h &nbsp; 
   End: <input id=ne type=number min=0 max=23 placeholder="7" style="width:50px">h<br>
   <div style="font-size:12px;margin-top:6px;display:flex;gap:6px">
@@ -90,6 +91,20 @@ button{cursor:pointer;background:#ff5078;border:0}li{margin:6px 0;list-style:non
     <label><input type=checkbox id=nd4>Th</label>
     <label><input type=checkbox id=nd5>Fr</label>
     <label><input type=checkbox id=nd6>Sa</label>
+  </div>
+  <div style="margin-top:12px; border-top:1px solid #333; padding-top:8px">
+    <b>Schedule 2</b><br>
+    Start: <input id=ns2 type=number min=0 max=23 placeholder="23" style="width:50px">h &nbsp; 
+    End: <input id=ne2 type=number min=0 max=23 placeholder="7" style="width:50px">h<br>
+    <div style="font-size:12px;margin-top:6px;display:flex;gap:6px">
+      <label><input type=checkbox id=nd2_0>Su</label>
+      <label><input type=checkbox id=nd2_1>Mo</label>
+      <label><input type=checkbox id=nd2_2>Tu</label>
+      <label><input type=checkbox id=nd2_3>We</label>
+      <label><input type=checkbox id=nd2_4>Th</label>
+      <label><input type=checkbox id=nd2_5>Fr</label>
+      <label><input type=checkbox id=nd2_6>Sa</label>
+    </div>
   </div>
 </div>
 </fieldset>
@@ -161,6 +176,8 @@ function ota(){if(!fw.files[0]){ost.textContent='pick a .bin first';return}
  tz.value=j.tz/3600; cord.value=j.cord||0;
  if(j.ns!==undefined)ns.value=j.ns; if(j.ne!==undefined)ne.value=j.ne;
  if(j.nd!==undefined)for(let i=0;i<7;i++)document.getElementById('nd'+i).checked=(j.nd&(1<<i));
+ if(j.ns2!==undefined)ns2.value=j.ns2; if(j.ne2!==undefined)ne2.value=j.ne2;
+ if(j.nd2!==undefined)for(let i=0;i<7;i++)document.getElementById('nd2_'+i).checked=(j.nd2&(1<<i));
  if(j.no!==undefined)nmo.value=j.no;
  if(j.cH) cH.value=j.cH; if(j.cM) cM.value=j.cM; if(j.cC) cC.value=j.cC;
  if(j.cS) cS.value=j.cS; if(j.cD) cD.value=j.cD; if(j.cT) cT.value=j.cT;
@@ -200,6 +217,10 @@ async function saveAll() {
     p.append("no", document.getElementById('nmo').value || 0);
     let mask = 0; for(let i=0;i<7;i++)if(document.getElementById('nd'+i).checked) mask|=(1<<i);
     p.append("nd", mask);
+    p.append("ns2", document.getElementById('ns2').value || 0);
+    p.append("ne2", document.getElementById('ne2').value || 7);
+    let mask2 = 0; for(let i=0;i<7;i++)if(document.getElementById('nd2_'+i).checked) mask2|=(1<<i);
+    p.append("nd2", mask2);
     p.append("cH", document.getElementById('cH').value);
     p.append("cM", document.getElementById('cM').value);
     p.append("cC", document.getElementById('cC').value);
@@ -442,6 +463,9 @@ void setupWeb() {
                      ",\"ns\":" + String(cfgNightStart) + 
                      ",\"ne\":" + String(cfgNightEnd) + 
                      ",\"nd\":" + String(cfgNightDays) + 
+                     ",\"ns2\":" + String(cfgNightStart2) + 
+                     ",\"ne2\":" + String(cfgNightEnd2) + 
+                     ",\"nd2\":" + String(cfgNightDays2) + 
                      ",\"no\":" + String(cfgNightOverride) + 
                      ",\"cH\":\"" + theme.hourHex + "\"" +
                      ",\"cM\":\"" + theme.minHex + "\"" +
@@ -489,6 +513,9 @@ void setupWeb() {
     if (web.hasArg("ns")) cfgNightStart = web.arg("ns").toInt();
     if (web.hasArg("ne")) cfgNightEnd = web.arg("ne").toInt();
     if (web.hasArg("nd")) cfgNightDays = web.arg("nd").toInt();
+    if (web.hasArg("ns2")) cfgNightStart2 = web.arg("ns2").toInt();
+    if (web.hasArg("ne2")) cfgNightEnd2 = web.arg("ne2").toInt();
+    if (web.hasArg("nd2")) cfgNightDays2 = web.arg("nd2").toInt();
     if (web.hasArg("no")) cfgNightOverride = web.arg("no").toInt();
     
     if (web.hasArg("cH")) theme.hourHex = web.arg("cH");

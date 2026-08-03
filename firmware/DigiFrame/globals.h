@@ -40,6 +40,9 @@ volatile bool isNightMode  = false;  // updated once per second in loop()
 uint8_t       cfgNightStart = 0;     // 0-23 (default 00:00)
 uint8_t       cfgNightEnd   = 7;     // 0-23 (default 07:00)
 uint8_t       cfgNightDays  = 127;   // bitmask 0=Sun..6=Sat (127 = all days)
+uint8_t       cfgNightStart2 = 0;    // 0-23 (default 00:00)
+uint8_t       cfgNightEnd2   = 7;    // 0-23 (default 07:00)
+uint8_t       cfgNightDays2  = 0;    // bitmask 0=Sun..6=Sat (0 = disabled)
 uint8_t       cfgNightOverride = 0;  // 0=Auto, 1=Force ON, 2=Force OFF
 
 /* defined in later headers, called from the tasks below */
@@ -78,7 +81,7 @@ enum Mode { MODE_CLOCK, MODE_MSG, MODE_GIF, MODE_CELEBRATE, MODE_TEST, MODE_SETU
 Mode mode = MODE_CLOCK;
 
 String   scrollText     = "";
-int      scrollX        = PANEL_W;
+int      scrollX        = 40;
 uint32_t msgEndsAt      = 0;          // millis when /msg expires (0 = pinned)
 String   currentGifPath = "";
 bool     gifOpen        = false;

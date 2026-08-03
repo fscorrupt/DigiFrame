@@ -221,7 +221,7 @@ void loop() {
       if (cfgNightOverride == 1) isNightMode = true;
       else if (cfgNightOverride == 2) isNightMode = false;
       else {
-        // Auto schedule
+        // Auto schedule 1
         bool dayEnabled = (cfgNightDays & (1 << tmNow.tm_wday));
         bool inTime = false;
         if (cfgNightStart < cfgNightEnd) {
@@ -229,7 +229,17 @@ void loop() {
         } else {
           inTime = (tmNow.tm_hour >= cfgNightStart || tmNow.tm_hour < cfgNightEnd);
         }
-        isNightMode = (dayEnabled && inTime);
+
+        // Auto schedule 2
+        bool dayEnabled2 = (cfgNightDays2 & (1 << tmNow.tm_wday));
+        bool inTime2 = false;
+        if (cfgNightStart2 < cfgNightEnd2) {
+          inTime2 = (tmNow.tm_hour >= cfgNightStart2 && tmNow.tm_hour < cfgNightEnd2);
+        } else {
+          inTime2 = (tmNow.tm_hour >= cfgNightStart2 || tmNow.tm_hour < cfgNightEnd2);
+        }
+
+        isNightMode = (dayEnabled && inTime) || (dayEnabled2 && inTime2);
       }
       uint8_t target = userBrightness;
       if (isNightMode) {
@@ -301,8 +311,24 @@ void loop() {
       break;
     }
     case MODE_MSG:
-      if (renderScroll(C_MSG)) dma->flipDMABuffer();
-      if (msgEndsAt && ms > msgEndsAt) { mode = MODE_CLOCK; }
+      if (gifOpen) {
+        int res = gif.playFrame(true, NULL);
+        blitGifCanvas();
+        int err = gif.getLastError();
+        if (err != GIF_SUCCESS && err != GIF_EMPTY_FRAME) {
+          logLine("GIF decode error...");
+          closeGif();
+        } else if (res == 0) {
+          if (gifIsUserPlay) gif.reset();
+          else closeGif();
+        }
+      }
+      if (renderScroll(C_MSG, !gifOpen)) dma->flipDMABuffer();
+      if (msgEndsAt && ms > msgEndsAt) {
+        scrollText = "";
+        if (gifOpen && gifIsUserPlay) mode = MODE_GIF;
+        else { closeGif(); mode = MODE_CLOCK; }
+      }
       break;
     case MODE_GIF:
       if (gifOpen) {
