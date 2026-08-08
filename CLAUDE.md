@@ -50,6 +50,7 @@ Preserve this order when adding a new header — e.g. anything using the DMA pan
 | File | Contents |
 |---|---|
 | `config.h` | user config + pin map (compile-time defaults) |
+| `build_opt.h` | `-D` flags the ESP32 core passes to **every** translation unit, including the panel library's own `.cpp`s. Currently just `PIXEL_COLOR_DEPTH_BITS`, which **must** be kept equal to `PANEL_COLOR_DEPTH` in `config.h` — the library picks its CIE luminance LUT from this macro at compile time while the framebuffer depth is set at runtime, and a mismatch silently corrupts mid-tone colours. |
 | `globals.h` | globals, runtime config strings, TgCmd queue, `logLine`, `tgTask`/`weatherTask`, colors |
 | `gif_player.h` | GIF decode callbacks, `openGif`/`closeGif`, character pack, `seedDefaultGifs` |
 | `default_gifs.h` | auto-generated embedded default GIF pack (do not edit — run `firmware/tools/make_default_gifs.ps1`) |

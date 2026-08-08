@@ -75,9 +75,26 @@
    (PANEL_H/2) * PANEL_W * 2 bytes * depth, DOUBLED because double_buff is on
    — and it must live in internal DRAM, which is the scarcest resource on this
    board (WiFi+AP wants ~70 KB of the same pool, and every concurrent TLS
-   session ~32 KB). At the library default of 8 that framebuffer alone is
-   64 KB, which once left setup() finishing with under 1 KB free.
-     8 -> 64 KB   6 -> 48 KB   5 -> 40 KB   4 -> 32 KB
-   5 keeps gradients in the ambient scene acceptable; drop to 4 only if you
-   need the extra 8 KB more than you need smooth colour. */
-#define PANEL_COLOR_DEPTH 5
+   session ~32 KB).
+     8 -> 64 KB   7 -> 56 KB   6 -> 48 KB   4 -> 32 KB
+
+   Two constraints, both easy to get wrong:
+
+   1. It MUST be one of the library's native CIE-luminance LUT depths —
+      4, 6, 7, 8, 10 or 12 (see the library's cie_luts.h). 5 is NOT one.
+   2. It MUST match -DPIXEL_COLOR_DEPTH_BITS in build_opt.h. The library picks
+      its luminance table at COMPILE time from that macro, whereas the runtime
+      cfg.setPixelColorDepthBits() call in DigiFrame.ino sets the framebuffer
+      depth. A sketch #define cannot reach the library's own .cpp files, which
+      is why build_opt.h exists — the ESP32 core passes it to every
+      translation unit.
+
+   This was 5 with the macro left at its default of 8: the luminance table
+   then did not match the bitplanes in use, so individual colour values
+   mapped non-monotonically and some mid-tones rendered black. Fully
+   saturated colours were unaffected, which made it look like a panel fault.
+
+   8 costs 64 KB and is affordable only because the Bluetooth stack (~67 KB)
+   was removed. If DRAM gets tight again, drop to 6 — and change build_opt.h
+   in the same commit. */
+#define PANEL_COLOR_DEPTH 8
