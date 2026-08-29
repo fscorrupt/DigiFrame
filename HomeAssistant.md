@@ -60,7 +60,7 @@ action:
 ```
 
 ## 2. Night Mode Control
-DigiFrame has a built-in schedule for Night Mode (configurable in its web dashboard). 
+DigiFrame has a built-in schedule for Night Mode (configurable in its web dashboard).
 However, you can completely override the schedule using Home Assistant!
 
 If you enabled MQTT in the DigiFrame web dashboard, the frame will automatically announce a **"Night Mode"** `select` entity to HA via MQTT Discovery.
@@ -140,16 +140,16 @@ mode: restart
 ```
 
 ## 5. Live Location Tracking Map
-You can overlay live travel stats (ETA, distance, street) on top of an automatically downloaded JPEG map by publishing a JSON payload to the clock's MQTT tracker topic. This is perfect for "Where is Nadine?" automations!
+You can overlay live travel stats (ETA, distance, street) on top of an automatically downloaded JPEG map by publishing a JSON payload to the clock's MQTT tracker topic. This is perfect for "Where is mustermann?" automations!
 
-The clock listens to the `digiframe/<your-clock-id>/tracker/set` MQTT topic. 
+The clock listens to the `digiframe/<your-clock-id>/tracker/set` MQTT topic.
 You can find your clock's exact MQTT ID by looking at your MQTT broker or HA devices list.
 
 > **Important**: The `map_url` provided by Home Assistant **must** be a **JPEG** image (not a PNG), as the firmware uses a hardware-accelerated JPEG decoder to keep memory usage low.
 
 **Example Automation:** Send tracking data to the clock
 ```yaml
-alias: "DigiFrame: Show Nadine's Location"
+alias: "DigiFrame: Show mustermann's Location"
 trigger:
   - platform: state
     entity_id: input_boolean.trigger_tracking # E.g., triggered via an Alexa Intent
@@ -160,11 +160,11 @@ action:
       topic: digiframe/digiframe_a1b2/tracker/set
       payload: >
         {
-          "person": "Nadine",
-          "dist": "{{ states('sensor.nadine_distance_from_home') }} km",
-          "eta": "{{ states('sensor.nadine_time_to_home') }} min",
-          "street": "{{ states('sensor.nadine_current_street') }}",
-          "map_url": "https://api.mapbox.com/styles/v1/mapbox/streets-v11/static/{{ state_attr('device_tracker.nadine', 'longitude') }},{{ state_attr('device_tracker.nadine', 'latitude') }},14/64x64?access_token=YOUR_TOKEN&format=jpg"
+          "person": "mustermann",
+          "dist": "{{ states('sensor.mustermann_distance_from_home') }} km",
+          "eta": "{{ states('sensor.mustermann_time_to_home') }} min",
+          "street": "{{ states('sensor.mustermann_current_street') }}",
+          "map_url": "https://api.mapbox.com/styles/v1/mapbox/streets-v11/static/{{ state_attr('device_tracker.mustermann', 'longitude') }},{{ state_attr('device_tracker.mustermann', 'latitude') }},14/64x64?access_token=YOUR_TOKEN&format=jpg"
         }
 ```
 
