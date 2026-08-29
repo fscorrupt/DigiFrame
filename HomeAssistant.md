@@ -227,4 +227,7 @@ action:
 ```
 *(Make sure to replace `<YOUR_HA_IP>` with your actual Home Assistant IP address! The `?t=...` part prevents caching.)*
 
+> [!NOTE]
+> **Missing sensors?** The Home Assistant companion app only provides raw GPS location by default. To get the `distance` and `time_to_home` sensors used in the automation above, you can install the free **Waze Travel Time** or **Proximity** integrations in Home Assistant. For the `current_street` sensor, simply enable the **Geocoded Location** sensor in the HA companion app settings on your phone!
+
 Whenever you want the clock to return to the normal clock face, Home Assistant can simply publish an empty payload to the `digiframe/<your-clock-id>/stop/set` topic.
