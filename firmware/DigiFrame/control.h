@@ -22,6 +22,23 @@ void ctlSendMsg(const String &text, bool pin) {
   msgEndsAt = pin ? 0 : (millis() + MSG_MINUTES * 60000UL);
 }
 
+void ctlTracker(const String &payload) {
+  JsonDocument doc;
+  if (deserializeJson(doc, payload) == DeserializationError::Ok) {
+    tPerson = doc["person"].as<String>();
+    tDist = doc["dist"].as<String>();
+    tEta = doc["eta"].as<String>();
+    tStreet = doc["street"].as<String>();
+    String newUrl = doc["map_url"].as<String>();
+    if (newUrl.length() > 0 && newUrl != tMapUrl) {
+      tMapUrl = newUrl;
+      trackerMapDirty = true; // Flag core 0 to fetch it
+    }
+    mode = MODE_TRACKER;
+    logLine("Tracker updated for " + tPerson);
+  }
+}
+
 void ctlSetBrightness(int v) {
   userBrightness = constrain(v, 1, 255);
   dma->setBrightness8(userBrightness);

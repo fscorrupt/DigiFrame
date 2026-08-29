@@ -111,6 +111,7 @@ void mqttCallback(char *topic, byte *payload, unsigned int len) {
   }
   else if (t.endsWith("/celebrate/set"))  postAction(CMD_CELEBRATE);
   else if (t.endsWith("/stop/set"))       postAction(CMD_STOP);
+  else if (t.endsWith("/tracker/set"))    postAction(CMD_TRACKER, v);
   else if (t.endsWith("/nightmode/set")) {
       uint8_t no = 0;
       if (v == "Auto") no = 0;
@@ -142,6 +143,7 @@ bool mqttReconnect() {
   mqttClient.subscribe((mqttBase + "/playgif/set").c_str());
   mqttClient.subscribe((mqttBase + "/celebrate/set").c_str());
   mqttClient.subscribe((mqttBase + "/stop/set").c_str());
+  mqttClient.subscribe((mqttBase + "/tracker/set").c_str());
   mqttPublishDiscovery();
   mqttPublishState(true);
   return true;

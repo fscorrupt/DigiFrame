@@ -10,12 +10,13 @@ $libraries = @(
     "Adafruit GFX Library@1.12.6",
     "Adafruit BusIO@1.17.4",
     "AnimatedGIF@2.2.0",
-    "PubSubClient@2.8"
+    "PubSubClient@2.8",
+    "JPEGDEC@1.3.1"
 )
 
 foreach ($lib in $libraries) {
     Write-Host "Installing $lib..."
-    arduino-cli lib install "$lib"
+    .\arduino-cli.exe lib install "$lib"
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Error installing $lib" -ForegroundColor Red
     }

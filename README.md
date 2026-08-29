@@ -54,8 +54,9 @@ control it from the **clock's own web dashboard** on your WiFi, or **Home Assist
   celebration all day. Add them from the dashboard.
 - **Customizable Colors** — independently change the color of the clock's hours, minutes, colon, seconds, date, temperature, and **calendar events** natively from the web dashboard.
 - **Live Status Tracking & System Overview** — the web dashboard polls the device in real-time, showing you exactly what the physical frame is rendering (Clock, specific GIF, or Message). It also features a real-time **System Overview** widget detailing total GIF storage capacity, free Heap (RAM), PSRAM, and internal device temperature!
+- **Live Location Tracking Map** — stream location tracking data and a map URL directly from Home Assistant. The frame will automatically download the JPEG map in the background and display live travel stats (ETA, distance, street) natively on the screen.
 - **Home Assistant** — optional MQTT integration with auto-discovery: brightness,
-  a message box, celebrate/stop buttons, and temperature/mode sensors.
+  a message box, celebrate/stop buttons, temperature/mode sensors, and map tracking.
 - **Hardware Configurability** — natively rotate the panel orientation (0/90/180/270 degrees) and adjust the RGB color order from the web dashboard to fix panel-specific rendering issues without needing to recompile.
 - **Configurable**: via the on-device web dashboard.
 - **OTA firmware updates** from the on-device dashboard.
