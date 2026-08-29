@@ -147,7 +147,60 @@ You can find your clock's exact MQTT ID by looking at your MQTT broker or HA dev
 
 > **Important**: The `map_url` provided by Home Assistant **must** be a **JPEG** image (not a PNG), as the firmware uses a hardware-accelerated JPEG decoder to keep memory usage low.
 
-**Example Automation:** Send tracking data to the clock
+To do this fully locally without relying on third-party APIs or paid services, you can use a small Python script within Home Assistant to automatically download a free map tile from OpenStreetMap, convert it to the required JPEG format, and save it locally.
+
+**1. Create the Python Script**
+Create a new file in your Home Assistant `config` folder named `get_map.py` (e.g. `/config/get_map.py`) and paste this code:
+```python
+import sys
+import math
+import urllib.request
+from PIL import Image
+import io
+
+def get_tile_url(lat, lon, zoom):
+    lat_rad = math.radians(lat)
+    n = 2.0 ** zoom
+    xtile = int((lon + 180.0) / 360.0 * n)
+    ytile = int((1.0 - math.asinh(math.tan(lat_rad)) / math.pi) / 2.0 * n)
+    return f"https://tile.openstreetmap.org/{zoom}/{xtile}/{ytile}.png"
+
+def main():
+    if len(sys.argv) < 3:
+        sys.exit(1)
+        
+    lat = float(sys.argv[1])
+    lon = float(sys.argv[2])
+    zoom = 14
+    
+    url = get_tile_url(lat, lon, zoom)
+    req = urllib.request.Request(url, headers={'User-Agent': 'HomeAssistant-DigiFrame/1.0'})
+    
+    try:
+        with urllib.request.urlopen(req) as response:
+            png_data = response.read()
+            
+        # Convert PNG to RGB JPEG and resize to fit the frame
+        img = Image.open(io.BytesIO(png_data)).convert('RGB')
+        img = img.resize((64, 64), Image.Resampling.LANCZOS)
+        
+        # Save to the HA www folder so it's accessible via URL
+        img.save('/config/www/current_map.jpg', 'JPEG', quality=85)
+    except Exception as e:
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
+```
+
+**2. Add Shell Command to `configuration.yaml`**
+```yaml
+shell_command:
+  update_digiframe_map: "python3 /config/get_map.py {{ lat }} {{ lon }}"
+```
+
+**3. The Automation**
+This automation runs the script first to prepare the image, then tells the DigiFrame to display it from your local Home Assistant IP.
 ```yaml
 alias: "DigiFrame: Show mustermann's Location"
 trigger:
@@ -155,6 +208,11 @@ trigger:
     entity_id: input_boolean.trigger_tracking # E.g., triggered via an Alexa Intent
     to: "on"
 action:
+  - service: shell_command.update_digiframe_map
+    data:
+      lat: "{{ state_attr('device_tracker.mustermann', 'latitude') }}"
+      lon: "{{ state_attr('device_tracker.mustermann', 'longitude') }}"
+  - delay: "00:00:02" # Wait for the image to process
   - service: mqtt.publish
     data:
       topic: digiframe/digiframe_a1b2/tracker/set
@@ -164,8 +222,9 @@ action:
           "dist": "{{ states('sensor.mustermann_distance_from_home') }} km",
           "eta": "{{ states('sensor.mustermann_time_to_home') }} min",
           "street": "{{ states('sensor.mustermann_current_street') }}",
-          "map_url": "https://api.mapbox.com/styles/v1/mapbox/streets-v11/static/{{ state_attr('device_tracker.mustermann', 'longitude') }},{{ state_attr('device_tracker.mustermann', 'latitude') }},14/64x64?access_token=YOUR_TOKEN&format=jpg"
+          "map_url": "http://<YOUR_HA_IP>:8123/local/current_map.jpg?t={{ now().timestamp() | int }}"
         }
 ```
+*(Make sure to replace `<YOUR_HA_IP>` with your actual Home Assistant IP address! The `?t=...` part prevents caching.)*
 
 Whenever you want the clock to return to the normal clock face, Home Assistant can simply publish an empty payload to the `digiframe/<your-clock-id>/stop/set` topic.
