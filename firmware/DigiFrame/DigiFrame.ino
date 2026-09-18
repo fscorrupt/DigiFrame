@@ -86,7 +86,6 @@
 #include "scroll.h"
 #include "party.h"
 #include "control.h"
-#include "tracker.h"
 #include "web_portal.h"
 #include "mqtt_ha.h"
 #include "qr_display.h"
@@ -195,11 +194,9 @@ void setup() {
 
   logMutex     = xSemaphoreCreateMutex();
   actionMutex  = xSemaphoreCreateMutex();
-  trackerMutex = xSemaphoreCreateMutex();
   
   xTaskCreatePinnedToCore(weatherTask, "weather",  4096, NULL, 1, &weatherTaskHandle, 0);
   xTaskCreatePinnedToCore(mqttTask,    "mqtt",     6144, NULL, 1, &mqttTaskHandle,    0);
-  xTaskCreatePinnedToCore(trackerTask, "tracker",  6144, NULL, 1, NULL,               0);
 
   heapReport("end of setup()");
   Serial.println("DigiFrame ready.");
@@ -291,7 +288,6 @@ void loop() {
                              ? startCelebration(req.strArg, req.strArg2)
                              : ctlCelebrate();                            break;
       case CMD_TEST:       startTest(req.strArg);                        break;
-      case CMD_TRACKER:    ctlTracker(req.strArg);                       break;
       case CMD_BRIGHTNESS: ctlSetBrightness(req.intArg);                 break;
       case CMD_NIGHTMODE:
         cfgNightOverride = req.intArg;
@@ -366,9 +362,6 @@ void loop() {
       break;
     case MODE_SETUP:
       renderSetupQR();             // static QR; redraws only when it changes
-      break;
-    case MODE_TRACKER:
-      renderTracker();
       break;
   }
 }

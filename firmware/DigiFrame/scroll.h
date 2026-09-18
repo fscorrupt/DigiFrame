@@ -18,8 +18,6 @@ bool renderScroll(uint16_t color, bool clearScreen = true) {
   
   if (scrollText != lastMeasuredStr) {
     lastMeasuredStr = scrollText;
-    currentScrollLine = 0;
-    scrollX = 40;
     totalLines = 0;
     
     int startIdx = 0;
@@ -40,20 +38,21 @@ bool renderScroll(uint16_t color, bool clearScreen = true) {
     }
     
     if (totalLines == 0) return true;
-    measuredW = lineWidths[0];
+
+    // Start with the first line that actually needs scrolling
+    currentScrollLine = 0;
+    for (int i = 0; i < totalLines; i++) {
+      if (lineWidths[i] > PANEL_W) {
+        currentScrollLine = i;
+        break;
+      }
+    }
+    measuredW = lineWidths[currentScrollLine];
+    scrollX = 0;
   }
   
   if (totalLines == 0) return true;
 
-  if (clearScreen) {
-    dma->fillScreen(0);
-    dma->setTextColor(color);
-  } else {
-    dma->setTextColor(color, 0);
-  }
-  dma->setTextWrap(false);
-  dma->setTextSize(scrollTextSize);
-  
   int pageIdx = currentScrollLine / scrollMaxLines;
   int linesInPage = totalLines - (pageIdx * scrollMaxLines);
   if (linesInPage > scrollMaxLines) linesInPage = scrollMaxLines;
@@ -62,6 +61,17 @@ bool renderScroll(uint16_t color, bool clearScreen = true) {
   int lineSpacing = (scrollTextSize == 2) ? 2 : 1;
   int totalH = linesInPage * lineHeight + (linesInPage - 1) * lineSpacing;
   int startY = 1; // Render at the top of the screen
+
+  if (clearScreen) {
+    dma->fillScreen(0);
+    dma->setTextColor(color);
+  } else {
+    // Solid black backing across the message area so GIF doesn't bleed through
+    dma->fillRect(0, 0, PANEL_W, totalH + 2, 0);
+    dma->setTextColor(color, 0);
+  }
+  dma->setTextWrap(false);
+  dma->setTextSize(scrollTextSize);
   
   for (int i = 0; i < linesInPage; i++) {
     int globalLineIdx = pageIdx * scrollMaxLines + i;
@@ -80,20 +90,38 @@ bool renderScroll(uint16_t color, bool clearScreen = true) {
     drawUTF8Text(x, y, lines[globalLineIdx], scrollTextSize);
   }
   
-  drawSpark(4, 54, C_ACCENT);
-  drawSpark(53, 54, C_ACCENT);
-  scrollX--;
-  
-  int excess = measuredW - PANEL_W;
-  if (excess < 0) excess = 0;
-  
-  if (scrollX < -excess - 30) {
-    scrollX = 40;
-    currentScrollLine++;
-    if (currentScrollLine >= totalLines) {
-      currentScrollLine = 0;
+  if (clearScreen) {
+    drawSpark(4, 54, C_ACCENT);
+    drawSpark(53, 54, C_ACCENT);
+  }
+
+  bool anyNeedsScroll = false;
+  for (int i = 0; i < totalLines; i++) {
+    if (lineWidths[i] > PANEL_W) {
+      anyNeedsScroll = true;
+      break;
     }
-    measuredW = lineWidths[currentScrollLine];
+  }
+
+  if (anyNeedsScroll) {
+    scrollX--;
+    int excess = measuredW - PANEL_W;
+    if (excess < 0) excess = 0;
+    
+    if (scrollX < -excess - 25) {
+      // Find the next line that exceeds PANEL_W
+      int nextLine = currentScrollLine;
+      for (int step = 1; step <= totalLines; step++) {
+        int idx = (currentScrollLine + step) % totalLines;
+        if (lineWidths[idx] > PANEL_W) {
+          nextLine = idx;
+          break;
+        }
+      }
+      currentScrollLine = nextLine;
+      measuredW = lineWidths[currentScrollLine];
+      scrollX = 0;
+    }
   }
   return true;
 }

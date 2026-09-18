@@ -53,7 +53,7 @@ void fetchWeather();
         Core 0 queues commands here; loop() on core 1 pops and executes
         them safely. All UI handlers on core 0 MUST perform their actions
         through postAction(), never call the ctl* functions directly. ---- */
-enum ActionCmd { CMD_NONE, CMD_PLAY_GIF, CMD_MSG, CMD_PIN, CMD_STOP, CMD_CELEBRATE, CMD_BRIGHTNESS, CMD_TEST, CMD_NIGHTMODE, CMD_TRACKER };
+enum ActionCmd { CMD_NONE, CMD_PLAY_GIF, CMD_MSG, CMD_PIN, CMD_STOP, CMD_CELEBRATE, CMD_BRIGHTNESS, CMD_TEST, CMD_NIGHTMODE };
 struct ActionRequest {
   ActionCmd  cmd     = CMD_NONE;
   String   strArg  = "";       // primary string (name / text / ssid / lat / token)
@@ -77,11 +77,11 @@ void postAction(ActionCmd cmd, String s1 = "", String s2 = "", int i1 = 0) {
   }
 }
 
-enum Mode { MODE_CLOCK, MODE_MSG, MODE_GIF, MODE_CELEBRATE, MODE_TEST, MODE_SETUP, MODE_TRACKER };
+enum Mode { MODE_CLOCK, MODE_MSG, MODE_GIF, MODE_CELEBRATE, MODE_TEST, MODE_SETUP };
 Mode mode = MODE_CLOCK;
 
 String   scrollText     = "";
-int      scrollX        = 40;
+int      scrollX        = 0;
 uint32_t msgEndsAt      = 0;          // millis when /msg expires (0 = pinned)
 String   currentGifPath = "";
 bool     gifOpen        = false;
@@ -100,18 +100,6 @@ uint8_t  testStep       = 0;
 uint32_t testStepAt     = 0;
 int      testSavedWCode = -1;
 String   testChat       = "";
-
-/* ---- tracker mode state ---- */
-String   tPerson        = "";
-String   tDist          = "";
-String   tEta           = "";
-String   tStreet        = "";
-String   tMapUrl        = "";
-uint8_t *trackerImgBuf  = nullptr;
-size_t   trackerImgSize = 0;
-size_t   trackerImgAlloc = 0;
-volatile bool trackerMapDirty = false;
-SemaphoreHandle_t trackerMutex = NULL;
 
 float    wTemp          = NAN;
 int      wCode          = -1;
