@@ -141,11 +141,30 @@ bool ctlSetWifi(const String &ssid, const String &pass) {
 }
 
 
+void ctlSetTimezone(const String &tz) {
+  if (!tz.length()) return;
+  cfgTimezone = tz;
+  setenv("TZ", cfgTimezone.c_str(), 1);
+  tzset();
+  time_t now = time(nullptr);
+  localtime_r(&now, &tmNow);
+  struct tm gmt;
+  gmtime_r(&now, &gmt);
+  tzOffsetSec = (tmNow.tm_hour - gmt.tm_hour) * 3600 + (tmNow.tm_min - gmt.tm_min) * 60;
+  if (tmNow.tm_mday > gmt.tm_mday || (tmNow.tm_mday == 1 && gmt.tm_mday > 1)) tzOffsetSec += 86400;
+  else if (tmNow.tm_mday < gmt.tm_mday || (gmt.tm_mday == 1 && tmNow.tm_mday > 1)) tzOffsetSec -= 86400;
+  saveConfig();
+  logLine("Timezone set: " + cfgTimezone + (tmNow.tm_isdst > 0 ? " [Summer/DST]" : " [Winter/Standard]"));
+}
+
 void ctlSetTz(int seconds) {
   tzOffsetSec = constrain(seconds, -12 * 3600, 14 * 3600);
-  configTime(tzOffsetSec, 0, "pool.ntp.org", "time.google.com");  // re-apply offset live
-  saveConfig();
-  logLine("timezone set: UTC" + String(tzOffsetSec >= 0 ? "+" : "") + String(tzOffsetSec / 3600.0, 2) + "h");
+  int hrs = -tzOffsetSec / 3600;
+  int mins = abs((tzOffsetSec % 3600) / 60);
+  char buf[32];
+  if (mins) snprintf(buf, sizeof(buf), "UTC%+d:%02d", hrs, mins);
+  else snprintf(buf, sizeof(buf), "UTC%+d", hrs);
+  ctlSetTimezone(String(buf));
 }
 
 void ctlSetTimeFmt(bool is24) {
@@ -196,6 +215,7 @@ String ctlStatusJson() {
   d["lat"]      = cfgLat;
   d["lon"]      = cfgLon;
   d["tz"]       = tzOffsetSec;
+  d["timezone"] = cfgTimezone;
   d["24h"]      = use24h;
   d["rot"]      = displayRotation;
   d["lang"]     = cfgLang;
@@ -212,6 +232,7 @@ String ctlStatusJson() {
   d["mqttHost"] = mqttHost;
   d["mqttPort"] = mqttPort;
   d["mqttUser"] = mqttUser;
+  d["cdepth"]   = panelColorDepth;
   String out;
   serializeJson(d, out);
   return out;

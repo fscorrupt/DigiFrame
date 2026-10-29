@@ -3,12 +3,11 @@
 
 /**********************  7. WEATHER  **********************************/
 void fetchWeather() {
-  WiFiClientSecure c;
-  c.setInsecure();
+  WiFiClient c;
   c.setTimeout(5000);
   HTTPClient http;
   http.setTimeout(5000);
-  String url = String("https://api.open-meteo.com/v1/forecast?latitude=") + cfgLat +
+  String url = String("http://api.open-meteo.com/v1/forecast?latitude=") + cfgLat +
                "&longitude=" + cfgLon + "&current=temperature_2m,weather_code";
   if (http.begin(c, url)) {
     int httpCode = http.GET();

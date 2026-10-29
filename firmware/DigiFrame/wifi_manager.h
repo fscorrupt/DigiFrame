@@ -52,7 +52,7 @@ void startPortal() {
   portalActive   = true;
   qrLastText     = "";                          // force QR redraw
   mode           = MODE_SETUP;
-  dma->setBrightness8(150);                     // QR must stay scannable
+  dma->setBrightness8(75);                      // QR is clearly scannable, avoids 2A power spike
   lastStaRetryAt = millis();
   logLine("PORTAL up: AP '" AP_SSID "' pass '" AP_PASS "' -> http://192.168.4.1");
 }
@@ -75,7 +75,7 @@ bool wifiConnect(uint32_t timeoutMs) {
   WiFi.mode(WIFI_STA);
   WiFi.setAutoReconnect(true);
   WiFi.begin(cfgWifiSsid.c_str(), cfgWifiPass.c_str());
-  WiFi.setSleep(false);                         // keeps Telegram snappy
+  WiFi.setSleep(true);                          // enables modem sleep: saves power, cooler ESP32
   uint32_t t0 = millis();
   while (WiFi.status() != WL_CONNECTED && millis() - t0 < timeoutMs) delay(200);
   return WiFi.status() == WL_CONNECTED;

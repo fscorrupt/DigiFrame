@@ -104,13 +104,31 @@ static void heapReport(const char *where) {
                 (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
   Serial.flush();
   delay(20);        // USB-CDC: let the line drain in case the next call abort()s
+}
 
+static const char* resetReasonStr(esp_reset_reason_t r) {
+  switch (r) {
+    case ESP_RST_POWERON:   return "Power-on";
+    case ESP_RST_EXT:       return "External pin reset";
+    case ESP_RST_SW:        return "Software reset";
+    case ESP_RST_PANIC:     return "Software panic / exception";
+    case ESP_RST_INT_WDT:   return "Interrupt watchdog reset";
+    case ESP_RST_TASK_WDT:  return "Task watchdog reset";
+    case ESP_RST_WDT:       return "Other watchdog reset";
+    case ESP_RST_DEEPSLEEP: return "Deep sleep wake";
+    case ESP_RST_BROWNOUT:  return "Brownout (voltage sag / power drop)";
+    case ESP_RST_SDIO:      return "SDIO reset";
+    default:                return "Unknown";
+  }
 }
 
 /**********************  13. SETUP  ***********************************/
 void setup() {
   Serial.begin(115200);
   delay(300);
+  logMutex    = xSemaphoreCreateMutex();
+  actionMutex = xSemaphoreCreateMutex();
+  logLine("Boot reset reason: " + String(resetReasonStr(esp_reset_reason())));
 
   /* ---- filesystem + persisted config (may override WiFi/TG creds) ----
      NB: the fatflash partition scheme labels the data partition "ffat"
@@ -154,11 +172,11 @@ void setup() {
   cfg.latch_blanking = 2;          // helps ghosting on some P2.5 panels
   cfg.clkphase = false;            // flip if you see column shift
   cfg.double_buff = true;          // back-buffer drawing; flip atomically → zero tearing/flicker
-  cfg.setPixelColorDepthBits(PANEL_COLOR_DEPTH);   // internal-DRAM budget — see config.h
+  cfg.setPixelColorDepthBits(panelColorDepth);   // internal-DRAM budget — runtime configurable
   dma = new MatrixPanel_I2S_DMA(cfg);
   dma->begin();
   heapReport("after dma->begin()");
-  dma->setBrightness8(userBrightness);
+  dma->setBrightness8(min((uint8_t)30, userBrightness)); // gentle boot brightness to avoid brownout spike
   dma->setRotation(displayRotation / 90);
   dma->fillScreen(0);
   dma->setTextSize(1);
@@ -169,13 +187,14 @@ void setup() {
   /* ---- wifi (falls back to hotspot + on-screen QR portal) ---- */
   if (wifiConnect(20000)) {
     logLine("WiFi OK, IP " + WiFi.localIP().toString());
+    dma->setBrightness8(userBrightness);
   } else {
     logLine("WiFi FAILED — starting setup hotspot");
     startPortal();
   }
 
-  /* ---- time (IST) — SNTP keeps retrying once a network appears ---- */
-  configTime(tzOffsetSec, 0, "pool.ntp.org", "time.google.com");
+  /* ---- time — SNTP with POSIX timezone & automatic DST rules ---- */
+  configTzTime(cfgTimezone.c_str(), "pool.ntp.org", "time.google.com");
   if (WiFi.status() == WL_CONNECTED) {
     time_t now = 0;
     uint32_t t0 = millis();
@@ -192,9 +211,6 @@ void setup() {
   if (WiFi.status() == WL_CONNECTED) fetchWeather();
   gif.begin(LITTLE_ENDIAN_PIXELS);
 
-  logMutex     = xSemaphoreCreateMutex();
-  actionMutex  = xSemaphoreCreateMutex();
-  
   xTaskCreatePinnedToCore(weatherTask, "weather",  4096, NULL, 1, &weatherTaskHandle, 0);
   xTaskCreatePinnedToCore(mqttTask,    "mqtt",     6144, NULL, 1, &mqttTaskHandle,    0);
 

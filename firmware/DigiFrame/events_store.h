@@ -175,6 +175,7 @@ void saveConfig() {
   d["charMin"] = charEveryMs / 60000UL;
   d["bright"]  = userBrightness;
   d["cord"]    = colorOrder;
+  d["cdepth"]  = panelColorDepth;
   d["ns"]      = cfgNightStart;
   d["ne"]      = cfgNightEnd;
   d["nd"]      = cfgNightDays;
@@ -186,7 +187,8 @@ void saveConfig() {
   d["pass"]    = cfgWifiPass;
   d["lat"]     = cfgLat;
   d["lon"]     = cfgLon;
-  d["tz"]      = tzOffsetSec;
+  d["tz"]       = tzOffsetSec;
+  d["timezone"] = cfgTimezone;
   d["24h"]     = use24h;
   d["rot"]     = displayRotation;
   d["lang"]    = cfgLang;
@@ -217,6 +219,7 @@ void loadConfig() {
     // Backward compat: old config used a bool "swap" or "swc" for G↔B swap
     else if (d["swap"].is<bool>() && d["swap"].as<bool>()) colorOrder = 1;
     else if (d["swc"].is<bool>()  && d["swc"].as<bool>())  colorOrder = 1;
+    if (d["cdepth"].is<int>())     panelColorDepth = constrain(d["cdepth"].as<int>(), 3, 8);
     if (d["ns"].is<int>())      cfgNightStart = d["ns"].as<int>();
     if (d["ne"].is<int>())      cfgNightEnd = d["ne"].as<int>();
     if (d["nd"].is<int>())      cfgNightDays = d["nd"].as<int>();
@@ -228,6 +231,23 @@ void loadConfig() {
     if (d["pass"].is<const char*>())    cfgWifiPass   = d["pass"].as<String>();
     if (d["lat"].is<const char*>()) strlcpy(cfgLat, d["lat"], sizeof(cfgLat));
     if (d["lon"].is<const char*>()) strlcpy(cfgLon, d["lon"], sizeof(cfgLon));
+    if (d["timezone"].is<const char*>()) {
+      cfgTimezone = d["timezone"].as<String>();
+    } else if (d["tz"].is<int>()) {
+      int legacySec = d["tz"].as<int>();
+      if (legacySec == 3600 || legacySec == 7200) {
+        cfgTimezone = DEFAULT_TIMEZONE;
+      } else {
+        int hrs = -legacySec / 3600;
+        int mins = abs((legacySec % 3600) / 60);
+        char buf[32];
+        if (mins) snprintf(buf, sizeof(buf), "UTC%+d:%02d", hrs, mins);
+        else snprintf(buf, sizeof(buf), "UTC%+d", hrs);
+        cfgTimezone = String(buf);
+      }
+    }
+    setenv("TZ", cfgTimezone.c_str(), 1);
+    tzset();
     if (d["tz"].is<int>())               tzOffsetSec = d["tz"].as<int>();
     if (d["24h"].is<bool>())             use24h = d["24h"].as<bool>();
     if (d["rot"].is<int>())              displayRotation = d["rot"].as<int>();

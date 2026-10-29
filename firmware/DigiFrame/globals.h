@@ -18,6 +18,7 @@ String ntpServer     = "pool.ntp.org";
    strlcpy race is harmless, a String heap realloc race is not. */
 char cfgLat[16]      = LATITUDE;
 char cfgLon[16]      = LONGITUDE;
+String cfgTimezone   = DEFAULT_TIMEZONE; // POSIX timezone string with automatic DST rules
 int  tzOffsetSec     = TZ_OFFSET_SEC;   // UTC offset in seconds (runtime-configurable)
 bool use24h          = (TIME_FORMAT == 24);
 int  displayRotation = ROTATION;
@@ -33,9 +34,10 @@ volatile bool mqttDiscoveryDirty = false; // triggers HA discovery republish
 volatile bool weatherNow   = false;  // web handler asks for an immediate refetch
 bool          portalActive = false;  // setup hotspot + captive portal active
 volatile bool wifiRetryNow = false;  // web handler asks for an immediate STA (re)connect
-int           colorOrder   = 0;      // 0=RGB, 1=RBG (swap G↔B), 2=GRB, 3=GBR, 4=BRG, 5=BGR
+int           colorOrder      = 0;      // 0=RGB, 1=RBG (swap G↔B), 2=GRB, 3=GBR, 4=BRG, 5=BGR
 #define swapColors (colorOrder == 1)   // legacy alias: true = swap G and B lines (colorOrder 1)
-volatile bool isNightMode  = false;  // updated once per second in loop()
+int           panelColorDepth = PANEL_COLOR_DEPTH; // bits per channel (3-8, default in config.h)
+volatile bool isNightMode     = false;  // updated once per second in loop()
 
 uint8_t       cfgNightStart = 0;     // 0-23 (default 00:00)
 uint8_t       cfgNightEnd   = 7;     // 0-23 (default 07:00)

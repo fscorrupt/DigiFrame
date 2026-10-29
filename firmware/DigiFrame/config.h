@@ -5,7 +5,8 @@
 #define WIFI_SSID "YOUR_WIFI_SSID"
 #define WIFI_PASS "YOUR_WIFI_PASS"
 
-#define TZ_OFFSET_SEC 7200 // default UTC+5:30 (override at runtime)
+#define DEFAULT_TIMEZONE "CET-1CEST,M3.5.0,M10.5.0/3" // Central Europe (Vienna/Berlin/Paris/Rome, auto summer/winter time)
+#define TZ_OFFSET_SEC 3600 // fallback standard UTC offset (seconds)
 #define TIME_FORMAT 24      // 12 or 24 (override at runtime)
 #define ROTATION 270          // 0, 90, 180, 270 (override at runtime)
 #define LANGUAGE 1          // 0: EN, 1: DE (override at runtime)
@@ -74,6 +75,5 @@
    session ~32 KB). At the library default of 8 that framebuffer alone is
    64 KB, which once left setup() finishing with under 1 KB free.
      8 -> 64 KB   6 -> 48 KB   5 -> 40 KB   4 -> 32 KB
-   5 keeps gradients in the ambient scene acceptable; drop to 4 only if you
-   need the extra 8 KB more than you need smooth colour. */
+/* Overridable at runtime from the web UI. 8 gives full 16M color gradients. */
 #define PANEL_COLOR_DEPTH 8

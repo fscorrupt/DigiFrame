@@ -52,9 +52,34 @@ button{cursor:pointer;background:#ff5078;border:0}li{margin:6px 0;list-style:non
 <input id=la placeholder="latitude" style="width:28%">
 <input id=lo placeholder="longitude" style="width:28%">
 <div class=st>decimal degrees, e.g. 12.97 / 77.59 &mdash; weather refreshes right away</div></fieldset>
-<fieldset><legend>Time zone</legend>
-<input id=tz type=number step=0.25 placeholder="UTC offset (hours)" style="width:55%">
-<div class=st>e.g. 5.5 for IST, -8 for PST, 5.75 for Nepal &mdash; clock updates right away</div></fieldset>
+<fieldset><legend>Time zone &amp; Daylight Saving</legend>
+<select id=tzSel onchange="onTzChange()" style="width:96%;margin-bottom:6px">
+  <option value="CET-1CEST,M3.5.0,M10.5.0/3">Europe: Vienna, Berlin, Paris, Rome, Madrid (CET/CEST)</option>
+  <option value="GMT0BST,M3.5.0/1,M10.5.0">Europe: London, Dublin, Lisbon (GMT/BST)</option>
+  <option value="EET-2EEST,M3.5.0/3,M10.5.0/4">Europe: Athens, Helsinki, Kyiv, Bucharest (EET/EEST)</option>
+  <option value="EST5EDT,M3.2.0,M11.1.0">US: Eastern (New York, Miami, Toronto)</option>
+  <option value="CST6CDT,M3.2.0,M11.1.0">US: Central (Chicago, Houston, Dallas)</option>
+  <option value="MST7MDT,M3.2.0,M11.1.0">US: Mountain (Denver, Salt Lake)</option>
+  <option value="MST7">US: Mountain - Arizona (Phoenix, no DST)</option>
+  <option value="PST8PDT,M3.2.0,M11.1.0">US: Pacific (Los Angeles, Seattle, Vancouver)</option>
+  <option value="AKST9AKDT,M3.2.0,M11.1.0">US: Alaska (Anchorage)</option>
+  <option value="HST10">US: Hawaii (Honolulu, no DST)</option>
+  <option value="AEST-10AEDT,M10.1.0,M4.1.0/3">Australia: Sydney, Melbourne, Canberra</option>
+  <option value="AEST-10">Australia: Brisbane, Queensland (no DST)</option>
+  <option value="ACST-9:30ACDT,M10.1.0,M4.1.0/3">Australia: Adelaide</option>
+  <option value="AWST-8">Australia: Perth (no DST)</option>
+  <option value="NZST-12NZDT,M9.5.0,M4.1.0/3">New Zealand: Auckland, Wellington</option>
+  <option value="JST-9">Asia: Tokyo, Seoul (no DST)</option>
+  <option value="CST-8">Asia: Beijing, Shanghai, Hong Kong, Singapore (no DST)</option>
+  <option value="IST-5:30">Asia: India (IST, no DST)</option>
+  <option value="UTC0">UTC (Universal Coordinated Time)</option>
+  <option value="custom">Custom POSIX string...</option>
+</select>
+<div id=tzCustomDiv style="display:none;margin-top:4px">
+  <input id=tzCustom placeholder="POSIX TZ string e.g. CET-1CEST,M3.5.0,M10.5.0/3" style="width:94%">
+  <div class=st>POSIX format: STD offset [DST [offset],start[/time],end[/time]]</div>
+</div>
+<div class=st>Automatic Summer/Winter time (DST) transitions are applied without internet</div></fieldset>
 <fieldset><legend>Display Colors &amp; Preview</legend>
 <div style="display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start;">
   <div style="display:grid;grid-template-columns:auto auto auto auto;gap:8px 12px;align-items:center;">
@@ -74,6 +99,7 @@ button{cursor:pointer;background:#ff5078;border:0}li{margin:6px 0;list-style:non
 <select id=tfm><option value=0>12-hour</option><option value=1>24-hour</option></select>
 <select id=rot><option value=0>0 deg</option><option value=90>90 deg</option><option value=180>180 deg</option><option value=270>270 deg</option></select>
 <br><label style="margin-top:8px;display:block">Color order (fixes wrong colors, reboots): <select id=cord><option value=0>RGB (default)</option><option value=1>RBG (swap G⇔B)</option><option value=2>GRB</option><option value=3>GBR</option><option value=4>BRG</option><option value=5>BGR</option></select></label>
+<label style="margin-top:8px;display:block">Color depth (DRAM / refresh rate, reboots): <select id=cdepth><option value=5>5-bit (Recommended &mdash; saves 24KB DRAM, high refresh)</option><option value=6>6-bit (Balanced &mdash; saves 16KB DRAM)</option><option value=8>8-bit (Full 16M colors &mdash; 64KB DRAM, memory tight)</option><option value=4>4-bit (Minimal 32KB DRAM)</option></select></label>
 </fieldset>
 <fieldset><legend>Night Mode (Dim &amp; Minimal)</legend>
 <div style="margin-bottom:8px">
@@ -167,13 +193,23 @@ function ota(){if(!fw.files[0]){ost.textContent='pick a .bin first';return}
  x.onerror=()=>{ost.textContent='upload failed (connection lost)'};
  let fd=new FormData();fd.append('file',fw.files[0]);x.send(fd);
  ost.textContent='uploading...'}
+ function onTzChange(){let s=document.getElementById('tzSel'),d=document.getElementById('tzCustomDiv');if(s.value==='custom'){d.style.display='block'}else{d.style.display='none';document.getElementById('tzCustom').value=s.value}}
  function setMsg(){api('msg','t='+encodeURIComponent(document.getElementById('m').value))}
  async function loadCfg(){try{let r=await fetch('/api/config'),j=await r.json();
  ws.placeholder=j.ssid?('SSID: '+j.ssid):'network name (SSID)';
  if(j.lat) la.value=j.lat; if(j.lon) lo.value=j.lon;
  tfm.value=j['24h']?'1':'0'; rot.value=j.rot; lang.value=j.lang;
  mqe.checked=!!j.mqttEn; if(j.mqttHost) mqh.value=j.mqttHost; if(j.mqttPort) mqp.value=j.mqttPort; if(j.mqttUser) mqu.value=j.mqttUser;
- tz.value=j.tz/3600; cord.value=j.cord||0;
+ cord.value=j.cord||0; if(j.cdepth) cdepth.value=j.cdepth;
+ if(j.timezone){
+  let s=document.getElementById('tzSel'),f=false;
+  for(let i=0;i<s.options.length;i++){if(s.options[i].value===j.timezone){s.selectedIndex=i;f=true;break}}
+  if(!f){s.value='custom';document.getElementById('tzCustom').value=j.timezone;document.getElementById('tzCustomDiv').style.display='block'}
+  else{document.getElementById('tzCustom').value=j.timezone;document.getElementById('tzCustomDiv').style.display='none'}
+ }else if(j.tz!==undefined){
+  let s=document.getElementById('tzSel');
+  if(j.tz===3600||j.tz===7200) s.value='CET-1CEST,M3.5.0,M10.5.0/3';
+ }
  if(j.ns!==undefined)ns.value=j.ns; if(j.ne!==undefined)ne.value=j.ne;
  if(j.nd!==undefined)for(let i=0;i<7;i++)document.getElementById('nd'+i).checked=(j.nd&(1<<i));
  if(j.ns2!==undefined)ns2.value=j.ns2; if(j.ne2!==undefined)ne2.value=j.ne2;
@@ -203,8 +239,9 @@ async function saveAll() {
     if(ws) { p.append("ws", ws); p.append("wp", document.getElementById('wp').value); }
     let la = document.getElementById('la').value, lo = document.getElementById('lo').value;
     if(la && lo) { p.append("la", la); p.append("lo", lo); }
-    let tz = document.getElementById('tz').value;
-    if(tz !== "") p.append("tz", Math.round(parseFloat(tz)*3600));
+    let ts = document.getElementById('tzSel').value;
+    let tv = (ts === 'custom') ? document.getElementById('tzCustom').value.trim() : ts;
+    if(tv) p.append("tz", tv);
     p.append("mqe", document.getElementById('mqe').checked ? '1' : '0'); 
     let mqh = document.getElementById('mqh').value;
     p.append("mqh", mqh); // ALWAYS send mqh so backend triggers ctlSetMqtt
@@ -212,6 +249,7 @@ async function saveAll() {
     p.append("mqu", document.getElementById('mqu').value);
     p.append("mqw", document.getElementById('mqw').value);
     p.append("cord", document.getElementById('cord').value);
+    p.append("cdepth", document.getElementById('cdepth').value);
     p.append("ns", document.getElementById('ns').value || 0);
     p.append("ne", document.getElementById('ne').value || 7);
     p.append("no", document.getElementById('nmo').value || 0);
@@ -460,6 +498,7 @@ void setupWeb() {
     String cfg = ctlStatusJson();
     // Inject extra config into the JSON
     cfg.replace("}", ",\"cord\":" + String(colorOrder) + 
+                     ",\"cdepth\":" + String(panelColorDepth) + 
                      ",\"ns\":" + String(cfgNightStart) + 
                      ",\"ne\":" + String(cfgNightEnd) + 
                      ",\"nd\":" + String(cfgNightDays) + 
@@ -487,9 +526,10 @@ void setupWeb() {
     if (!ctlSetLoc(web.arg("la"), web.arg("lo"))) { web.send(400, "text/plain", "bad lat/lon"); return; }
     web.send(200, "text/plain", "ok");
   });
-  /* ---- save timezone (UTC offset in seconds); re-applies immediately ---- */
+  /* ---- save timezone (POSIX string or legacy seconds); re-applies immediately ---- */
   web.on("/api/tz", HTTP_POST, []() {
-    ctlSetTz(web.arg("s").toInt());
+    if (web.hasArg("tz")) ctlSetTimezone(web.arg("tz"));
+    else if (web.hasArg("s")) ctlSetTz(web.arg("s").toInt());
     web.send(200, "text/plain", "ok");
   });
   /* ---- save all config (global save button) ---- */
@@ -500,13 +540,20 @@ void setupWeb() {
     if (web.hasArg("iv")) ctlSetInterval(web.arg("iv").toInt());
     if (web.hasArg("ws")) ctlSetWifi(web.arg("ws"), web.arg("wp"));
     if (web.hasArg("la")) ctlSetLoc(web.arg("la"), web.arg("lo"));
-    if (web.hasArg("tz")) ctlSetTz(web.arg("tz").toInt());
+    if (web.hasArg("tz")) ctlSetTimezone(web.arg("tz"));
     if (web.hasArg("mqh")) ctlSetMqtt(web.arg("mqe")=="1", web.arg("mqh"), web.arg("mqp").toInt(), web.arg("mqu"), web.arg("mqw"));
     bool doReboot = false;
     if (web.hasArg("cord")) {
        int newCord = constrain(web.arg("cord").toInt(), 0, 5);
        if (colorOrder != newCord) {
            colorOrder = newCord;
+           doReboot = true;
+       }
+    }
+    if (web.hasArg("cdepth")) {
+       int newDepth = constrain(web.arg("cdepth").toInt(), 3, 8);
+       if (panelColorDepth != newDepth) {
+           panelColorDepth = newDepth;
            doReboot = true;
        }
     }
